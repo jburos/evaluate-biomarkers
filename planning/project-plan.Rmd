@@ -19,21 +19,10 @@ Recently, several clinical trials have been proposed to evaluate potential for c
 
 Specifically, because of the following factors:
 
-1. **Diversity of cohorts**  potential biomarkers are evaluated in different samples / study cohorts 
-  - lack of overlap (multiple biomarkers on same patients) makes comparisons difficult 
-    * e.g. two biomarkers may be closely correlated, and thus only one is required 
-  - potential for cohort-specific effects, masking important interactions
-    * e.g. a biomarker (a) may only be informative in cohort A, while biomarker (b) is only informative in cohort B.
-  - different studies have different amounts of clinical / demographic / molecular data available
-  - different studies measure outcomes at different times
-2. **Diversity of disease** potential biomarkers are evaluated in different disease sites / states
-  - different sites of cancer
-  - different state of disease
-3. **Diversity of therapies** potential biomarkers are evaluated studies with different treatment or therapies 
-  - biomarker for efficacy of one therapy may be different from that for another therapy
-4. **Small sample sizes** always make inferences difficult
-
-None of these is the fault of the researcher - typically researchers evaluate their potential biomarker *in the datasets they have available*. 
+1. Not all biomarkers are measured in every cohort 
+2. Variety of cancers being evaluated 
+3. Variety of therapies under investigation
+4. **Small sample sizes** - always make inferences difficult
 
 The goal of this project is to consider how best to evaluate potential biomarkers in this context.
 
