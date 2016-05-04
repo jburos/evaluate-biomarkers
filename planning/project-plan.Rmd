@@ -43,9 +43,10 @@ The typical approach to this kind of question is to :
 There are some ways we can improve upon the standard approach.
 
 For example:
+
 1. Use a more informative prior on expected outcome, by incorporating survival rates typical according to published literature
-2. If population-averaged data for the biomarker of interest are included in prior studies, additionally include this information
-  - e.g. some studies screen for patients with particular molecular attributes believed to be more likely to benefit from therapy
+2. Include populations where biomarkers were used to screen patients for enrollment
+    - e.g. some studies screen for patients with particular molecular attributes believed to be more likely to benefit from therapy
 
 ## Decision-theory based approach 
 
@@ -62,9 +63,10 @@ Putative biomarkers can be separated into several groups, depending on their pur
 Sometimes it can be helpful to consider what a best case scenario would look like. 
 
 Ideally, this research would
-  1. Evaluate each new biomarker in the context of *all* known and putative biomarkers
-  2. Adjust their particular analysis for the ways their sample cohort varies from those studied to date
-  3. Update or summarize the state of knowledge, to identify how well the set of all biomarkers is performing
+
+1. Evaluate each new biomarker in the context of *all* known and putative biomarkers
+2. Adjust their particular analysis for the ways their sample cohort varies from those studied to date
+3. Update or summarize the state of knowledge, to identify how well the set of all biomarkers is performing
 
 ## A base model for disease 
 
