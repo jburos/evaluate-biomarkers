@@ -8,21 +8,36 @@ several [biomarkers]() of therapeutic efficacy. While there is a
 pressing need for such research, there is also a potential for
 confusion.
 
-Specifically, because of the following factors: 1. **Diversity of
-cohorts** potential biomarkers are evaluated in different samples /
-study cohorts - lack of overlap (multiple biomarkers on same patients)
-makes comparisons difficult \* e.g. two biomarkers may be closely
-correlated, and thus only one is required - potential for
-cohort-specific effects, masking important interactions \* e.g. a
-biomarker (a) may only be informative in cohort A, while biomarker (b)
-is only informative in cohort B. - different studies have different
-amounts of clinical / demographic / molecular data available - different
-studies measure outcomes at different times 2. **Diversity of disease:**
-potential biomarkers are evaluated in different disease sites / states -
-different sites of cancer - different state of disease 3. **Diversity of
-therapies** potential biomarkers are evaluated studies with different
-treatment or therapies - biomarker for efficacy of one therapy may be
-different from that for another therapy
+Specifically, because of the following factors:
+
+1.  **Diversity of cohorts** potential biomarkers are evaluated in
+    different samples / study cohorts
+
+-   lack of overlap (multiple biomarkers on same patients) makes
+    comparisons difficult
+    -   e.g. two biomarkers may be closely correlated, and thus only one
+        is required
+-   potential for cohort-specific effects, masking important
+    interactions
+    -   e.g. a biomarker (a) may only be informative in cohort A, while
+        biomarker (b) is only informative in cohort B.
+-   different studies have different amounts of clinical / demographic /
+    molecular data available
+-   different studies measure outcomes at different times
+
+1.  **Diversity of disease** potential biomarkers are evaluated in
+    different disease sites / states
+
+-   different sites of cancer
+-   different state of disease
+
+1.  **Diversity of therapies** potential biomarkers are evaluated
+    studies with different treatment or therapies
+
+-   biomarker for efficacy of one therapy may be different from that for
+    another therapy
+
+1.  **Small sample sizes** always make inferences difficult
 
 None of these is the fault of the researcher - typically researchers
 evaluate their potential biomarker *in the datasets they have
