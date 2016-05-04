@@ -35,10 +35,9 @@ The typical approach to this kind of question is to :
     according to measured value of biomarker.
 4.  Revise model in (2), to include features (e.g. other biomarkers)
     known to correlate with benefit from disease.
-
--   After accounting for known biomarkers, known correlates of clinical
-    outcome, and the therapeutic intervention, how much of the variance
-    in outcome is explained by the biomarker?
+    -   After accounting for known biomarkers, known correlates of
+        clinical outcome, and the therapeutic intervention, how much of
+        the variance in outcome is explained by the biomarker?
 
 Improved standard approach
 --------------------------
