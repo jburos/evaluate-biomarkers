@@ -44,28 +44,30 @@ Improved standard approach
 
 There are some ways we can improve upon the standard approach.
 
-For example: 1. Use a more informative prior on expected outcome, by
-incorporating survival rates typical according to published literature
-2. If population-averaged data for the biomarker of interest are
-included in prior studies, additionally include this information - e.g.
-some studies screen for patients with particular molecular attributes
-believed to be more likely to benefit from therapy
+For example:
 
-Decision-theory based approach
-------------------------------
+1.  Use a more informative prior on expected outcome, by incorporating
+    survival rates typical according to published literature
+2.  Include populations where biomarkers were used to screen patients
+    for enrollment
+    -   e.g. some studies screen for patients with particular molecular
+        attributes believed to be more likely to benefit from therapy
 
-This approach starts by considering the decision the biomarker is meant
-to inform.
+Various roles biomarkers play
+-----------------------------
 
 Putative biomarkers can be separated into several groups, depending on
-their purpose / correlation:
+their purpose / correlation. This also speaks to the type of decision
+the biomarker would be used to inform.
+
+Biomarkers may be:
 
 1.  Correlated with outcome (survival), but do not modify treatment
     effect on outcome
-2.  Predict efficacy of treatment - ie could be used to select patients
-    more likely to benefit from treatment
-3.  Indicator of treatment efficacy - ie measured during or following
-    therapy but strongly indicates likelihood of positive outcome
+2.  Used to select patients likely to benefit from treatment
+3.  Used as an indicator of treatment efficacy - ie measured during or
+    following therapy but strongly indicates likelihood of positive
+    outcome
 
 Best case scenario
 ------------------
@@ -73,11 +75,14 @@ Best case scenario
 Sometimes it can be helpful to consider what a best case scenario would
 look like.
 
-Ideally, this research would 1. Evaluate each new biomarker in the
-context of *all* known and putative biomarkers 2. Adjust their
-particular analysis for the ways their sample cohort varies from those
-studied to date 3. Update or summarize the state of knowledge, to
-identify how well the set of all biomarkers is performing
+Ideally, this research would
+
+1.  Evaluate each new biomarker in the context of *all* known and
+    putative biomarkers
+2.  Adjust their particular analysis for the ways their sample cohort
+    varies from those studied to date
+3.  Update or summarize the state of knowledge, to identify how well the
+    set of all biomarkers is performing
 
 A base model for disease
 ------------------------
