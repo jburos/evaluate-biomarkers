@@ -81,17 +81,18 @@ One idea is to model disease (tumor progression) as an outcome of a dynamic syst
 We will start with a simplified model of the [tumor microenvironment]().
 
 There are a few key players of interest:
+
 1. Tumor cells (the tumor)
-  * have a number (N)
-  * have an inherent rate of growth/decay (change in N)
+    * have a number (N)
+    * have an inherent rate of growth/decay (change in N)
 2. Immune cells (the immune system)
-  * have a number (N)
-  * have an inherent rate of growth/decay (change in N)
+    * have a number (N)
+    * have an inherent rate of growth/decay (change in N)
 3. Cytokines
-  * number may not be that important
-  * are secreted by both Tumor cells and Immune cells 
-  * often cancel each other out (ie one cytokine has effect of inhibiting another)
-  * have net effect of modifying the parameters of interest
+    * number may not be that important
+    * are secreted by both Tumor cells and Immune cells 
+    * often cancel each other out (ie one cytokine has effect of inhibiting another)
+    * have net effect of modifying the parameters of interest
 
 There are other attributes, but for now let's just consider these.
 
@@ -102,8 +103,11 @@ We will address each in turn.
 Thinking simplistically, the primary method of therapy is to *enable the immune system*. Modeling the level of immune-system activation is therefore pretty important to our goal.
 
 Let's think about the primary way that these two players interact.
-  1. **immune activation** Some portion of immune cells are activated against (primed to kill) tumor cells
-  2. **tumor resistance** Some portion of tumor cells resistent to immune-cell-mediated cell death
+
+1. **immune activation** 
+    Some portion of immune cells are activated against (primed to kill) tumor cells
+2. **tumor resistance** 
+    Some portion of tumor cells resistent to immune-cell-mediated cell death
 
 From a very simplistic level, we can combine these two values to yield a **net activation** of the immune cells. 
 
