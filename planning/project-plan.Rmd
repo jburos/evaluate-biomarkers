@@ -48,15 +48,15 @@ For example:
 2. Include populations where biomarkers were used to screen patients for enrollment
     - e.g. some studies screen for patients with particular molecular attributes believed to be more likely to benefit from therapy
 
-## Decision-theory based approach 
+## Various roles biomarkers play
 
-This approach starts by considering the decision the biomarker is meant to inform.
+Putative biomarkers can be separated into several groups, depending on their purpose / correlation. This also speaks to the type of decision the biomarker would be used to inform.
 
-Putative biomarkers can be separated into several groups, depending on their purpose / correlation: 
+Biomarkers may be:
 
 1. Correlated with outcome (survival), but do not modify treatment effect on outcome
-2. Predict efficacy of treatment - ie could be used to select patients more likely to benefit from treatment
-3. Indicator of treatment efficacy - ie measured during or following therapy but strongly indicates likelihood of positive outcome
+2. Used to select patients likely to benefit from treatment
+3. Used as an indicator of treatment efficacy - ie measured during or following therapy but strongly indicates likelihood of positive outcome
 
 ## Best case scenario
 
