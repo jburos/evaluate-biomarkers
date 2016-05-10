@@ -2,16 +2,18 @@
 #' Function to simulate data for simple survival model (applied to onco-immunotherapy data)
 #' 
 #' 
-#' @param n total number of observations
-#' @param max_t max period of time
+#' @param n sample size (number of units observed)
+#' @param max_t max period of time per unit
 #' @param growth_rate_fun function yielding growth rate parameters. Takes single param (n)
 #' @param hazard_noise_fun function yielding hazard noise parameters. Takes single param (n)
 #' @param hazard_coefs_fun function yielding nXc matrix of named coefs for each obs. Takes single param (n)
 #' @param hazard_fun function yielding hazard estimate, given set of input params. Takes list of values 
 #' @param censor_fun function yielding censor times. Takes single param (n)
+#' @param plot (default TRUE) if true, plot the simulated data
 #'
-#' @importMethodsFrom purrr partial
+#' @import purrr
 #' @import dplyr
+#' @import ggplot2
 #'
 #' @return data frame containing (long-version) of simulated data & parameters
 #' 
@@ -147,8 +149,11 @@ create_rt <- function(df, half = FALSE, ncp = NULL) {
 #' 
 #' @param location
 #' @param scale
-#' @param half if TRUE, result is truncated at values > location
+#' @param half (default FALSE) if TRUE, result is truncated at values > location
 #' 
+#' @import purrr
+#' 
+#' @returns function taking parameter 'n' returning draws from cauchy distribution
 create_rcauchy <- function(location, scale, half = FALSE) {
   if (half == TRUE)
     purrr::partial(left_truncate, .dist = rcauchy, .val = location, location = location, scale = scale)
@@ -163,6 +168,9 @@ create_rcauchy <- function(location, scale, half = FALSE) {
 #' @param shape2
 #' @param half if TRUE, result is truncated at values > location
 #' 
+#' @import purrr
+#' 
+#' @returns function taking parameter 'n' returning draws from beta distribution
 create_rbeta <- function(shape1, shape2) {
   purrr::partial(rbeta, shape1 = shape1, shape2 = shape2)
 }
