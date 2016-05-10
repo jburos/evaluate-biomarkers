@@ -105,8 +105,8 @@ simulate_data = function(
 #' @returns function taking parameter 'n' that repeats value n times
 #' 
 create_scalar <- function(value) {
-  function(.n) {
-    rep(x = value, times = .n)
+  function(n) {
+    rep(x = value, times = n)
   }
 }
 
