@@ -30,6 +30,7 @@ simulate_data = function(
   , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = rnorm(n, mean = 3, sd = 1)) }
   , hazard_fun = function(row) { row$intercept + row$tumor_size*row$beta_tumor_size + row$hazard_noise }
   , censor_time_fun = create_rt(df = 10, ncp = 10, half = TRUE)
+  , plot = TRUE
   ) {
 
   ## simulate tumor growth over time at patient level
@@ -83,16 +84,18 @@ simulate_data = function(
     unlist()
   
   ## review simulated data 
-  ggplot(simdt %>% 
-           gather(var, value, hazard, tumor_size) %>% 
-           mutate(grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
-                  , init = paste('init_size:',round(init_size, digits = 1), sep='')
-                  )
-         , aes(x = t, y = value, colour = var, group = var)) + 
-    geom_line() + 
-    facet_wrap(~patid + grt + init, scale = 'free_y')
+  if (plot == TRUE) {
+    ggplot(simdt %>% 
+             gather(var, value, hazard, tumor_size) %>% 
+             mutate(grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
+                    , init = paste('init_size:',round(init_size, digits = 1), sep='')
+                    )
+           , aes(x = t, y = value, colour = var, group = var)) + 
+      geom_line() + 
+      facet_wrap(~patid + grt + init, scale = 'free_y')
+  }
   
-  
+  simdt
 }
 
 #' helper functional wrapping 'rep'
