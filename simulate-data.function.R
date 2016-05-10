@@ -115,7 +115,9 @@ simulate_data = function(
       dplyr::filter(t == i && observed == 1) %>%
       rowwise() %>% 
       ## calc prob of failure (rowwise b/c each obs has different hazard value)
-      dplyr::mutate(failure = rbinom(n = n(), size = round(hazard, digits = 0), prob = prob_failure)) %>% 
+      dplyr::mutate(eff_hazard = round(ifelse(hazard >= 5000, 5000, hazard), digits = 0)
+                    , failure = rbinom(n = n(), size = eff_hazard, prob = prob_failure)
+                    ) %>% 
       ungroup() %>% 
       ## join back to original data frame
       bind_rows(simdt2 %>% filter(t != i || observed == 0)) %>%
