@@ -1,15 +1,34 @@
 
-#' Function to simulate data for simple survival model (applied to onco-immunotherapy data)
+#' Function to simulate data for simple survival model, as applied to onco-immunotherapy data
 #' 
+#' @description 
+#' This posits a generic logistic growth model over time, where patient-level hazard is a function of tumor size. 
+#' The function takes several functions as input, used to generate components of the simulation. The only fixed element is the 
+#' growth over time, given two parameters : rate (varies over time), and most recent size of tumor. 
+#' 
+#' The rate of growth in tumor size (T) at any timepoint t, given current tumor size (base), max_size & current rate is:
+#'  
+#'  dTdt = (base*rate*(max_size-base)/max_size)
 #' 
 #' @param n sample size (number of units observed)
 #' @param max_t max period of time per unit
-#' @param growth_rate_fun function yielding growth rate parameters. Takes single param (n)
+#' @param max_size hypothesized max tolerable size of the tumor, at which growth is truncated.
+#' @param plot (default TRUE) if true, plot the simulated data
+#' 
+#' @section parameters for tumor size over time
+#' @param init_size_fun function yielding initial tumor size(s) per obs. Takes single param (n)
+#' @param growth_rate_fun function yielding growth rate parameters per obs. Takes single param (n)
+#' @param growth_rate_noise_fun function yielding variance in growth rate per obs*timepoint. Takes single param (n)
+#' @param size_noise_fun function yielding measurement error in size of tumor, per obs*timepoint. Does not impact hazard, only observed values. Takes single param (n)
+#' @param observed_size_fun function taking named vector of values for each obs*timepoint, returns observed tumor size.
+#' 
+#' @section parameters for estimated hazard
 #' @param hazard_noise_fun function yielding hazard noise parameters. Takes single param (n)
 #' @param hazard_coefs_fun function yielding nXc matrix of named coefs for each obs. Takes single param (n)
 #' @param hazard_fun function yielding hazard estimate, given set of input params. Takes list of values 
+#' 
+#' @section parameters for censoring / behavior
 #' @param censor_fun function yielding censor times. Takes single param (n)
-#' @param plot (default TRUE) if true, plot the simulated data
 #'
 #' @import purrr
 #' @import dplyr
@@ -21,6 +40,7 @@ simulate_data = function(
   n = 20
   , max_t = 50
   , max_size = 2000
+  , plot = TRUE
   , init_size_fun = create_rt(df = 5, ncp = 0, half = TRUE)
   , growth_rate_fun = create_rbeta(10, 20)
   , growth_rate_noise_fun = create_rnorm(mean = 0, sd = 1)
@@ -30,7 +50,6 @@ simulate_data = function(
   , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = rnorm(n, mean = 3, sd = 1)) }
   , hazard_fun = function(row) { row$intercept + row$tumor_size*row$beta_tumor_size + row$hazard_noise }
   , censor_time_fun = create_rt(df = 10, ncp = 10, half = TRUE)
-  , plot = TRUE
   ) {
 
   ## simulate tumor growth over time at patient level
@@ -98,7 +117,7 @@ simulate_data = function(
   simdt
 }
 
-#' helper functional wrapping 'rep'
+#' helper functional wrapping 'rep', intended for use with simulate_data
 #'
 #' @param val
 #' 
@@ -110,7 +129,7 @@ create_scalar <- function(value) {
   }
 }
 
-#' helper functional wrapping 'rnorm'
+#' helper functional wrapping 'rnorm', inteded for use with simulate_data
 #' 
 #' @param mean
 #' @param sd
@@ -123,7 +142,7 @@ create_rnorm <- function(mean, sd) {
   purrr::partial(rnorm, mean = mean, sd = sd)
 } 
 
-#' helper function to truncate a dist 
+#' helper function to truncate a distribution. Intended for use with simulate_data
 #' 
 #' @param .val minimum value - draws are filtered to be greater than this value
 #' @param .dist function yielding samples to be filtered
@@ -140,7 +159,7 @@ left_truncate <- function(.dist, .val, n = n, ...) {
     sample(., n = n, replace = TRUE)
 }
   
-#' helper functional for rt
+#' helper functional for rt, intended for use with simulate_data
 #' 
 #' @param df degrees of freedom for t distribution
 #' @param ncp (optional) param to rt. See rt for details
@@ -157,7 +176,7 @@ create_rt <- function(df, half = FALSE, ncp = 0) {
   }
 } 
 
-#' helper functional for rcauchy
+#' helper functional for rcauchy, intended for use with simulate_data
 #' 
 #' @param location
 #' @param scale
@@ -174,7 +193,7 @@ create_rcauchy <- function(location, scale, half = FALSE) {
   }
 }
 
-#' helper functional for rbeta
+#' helper functional for rbeta, intended for use with simulate_data
 #' 
 #' @param shape1
 #' @param shape2
