@@ -33,23 +33,26 @@
 #' @import purrr
 #' @import dplyr
 #' @import ggplot2
+#' @import tidyr
+#' @importFrom dplyr `%>%`
 #'
 #' @return data frame containing (long-version) of simulated data & parameters
 #' 
 simulate_data = function(
   n = 20
   , max_t = 50
-  , max_size = 2000
+  , max_size = 40000
+  , prob_failure = 1/max_size
   , plot = TRUE
   , init_size_fun = create_rt(df = 5, ncp = 0, half = TRUE)
-  , growth_rate_fun = create_rbeta(10, 20)
+  , growth_rate_fun = create_rbeta(shape1 = 10, shape2 = 20)
   , growth_rate_noise_fun = create_rnorm(mean = 0, sd = 1)
   , size_noise_fun = create_rnorm(mean = 0, sd = 1)
-  , observed_size_fun = function(row) {(row$tumor_size + row$size_noise)}
+  , observed_size_fun = function(row) {(vol2rad(row$tumor_size)*2 + row$size_noise)} ## diameter is observed, whereas volume determines hazard
   , hazard_noise_fun = create_rcauchy(location = 0, scale = 5, half = TRUE)
   , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = rnorm(n, mean = 3, sd = 1)) }
   , hazard_fun = function(row) { row$intercept + row$tumor_size*row$beta_tumor_size + row$hazard_noise }
-  , censor_time_fun = create_rt(df = 10, ncp = 10, half = TRUE)
+  , censor_time_fun = create_scalar(value = max_t)   ## create_rt(df = 10, ncp = 20, half = TRUE)
   ) {
 
   ## simulate tumor growth over time at patient level
@@ -87,7 +90,8 @@ simulate_data = function(
                                 )
       ) %>%
     ungroup() %>%
-    dplyr::filter(t > 0)
+    dplyr::filter(t > 0) %>%
+    mutate(observed = ifelse(t >= censor_time, 0, 1))
   
   simdt$observed_size <- 
     simdt %>%
@@ -102,19 +106,67 @@ simulate_data = function(
     do(hazard = hazard_fun(.)) %>% 
     unlist()
   
-  ## review simulated data 
-  if (plot == TRUE) {
-    ggplot(simdt %>% 
-             gather(var, value, hazard, tumor_size) %>% 
-             mutate(grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
-                    , init = paste('init_size:',round(init_size, digits = 1), sep='')
-                    )
-           , aes(x = t, y = value, colour = var, group = var)) + 
-      geom_line() + 
-      facet_wrap(~patid + grt + init, scale = 'free_y')
+  simdt2 <- simdt
+  i <- 1
+  ## failure for each timepoint
+  while (nrow(simdt2 %>% dplyr::filter(t == i)) > 0 && i <= max_t) {
+    simdt2 <- 
+      simdt2 %>%
+      dplyr::filter(t == i && observed == 1) %>%
+      rowwise() %>% 
+      ## calc prob of failure (rowwise b/c each obs has different hazard value)
+      dplyr::mutate(failure = rbinom(n = n(), size = round(hazard, digits = 0), prob = prob_failure)) %>% 
+      ungroup() %>% 
+      ## join back to original data frame
+      bind_rows(simdt2 %>% filter(t != i || observed == 0)) %>%
+      ## update first failure per patient
+      group_by(patid) %>% 
+      mutate(first_failure = min(ifelse(failure == 1, t, max_t + 1), na.rm = T)) %>%
+      ungroup() %>%
+      ## marked post-failure events as unobserved
+      dplyr::mutate(observed = ifelse(t > first_failure, 0, observed))
+    ## rinse & repeat
+    i <- i + 1
+    if (i > max_t)
+      break
   }
-  
+    
+  simdt <- simdt2
+  rm(simdt2)
+    
+    
   simdt
+}
+
+plot_simulated_data <- function(d) {
+    pl1 <- 
+      ggplot() + 
+      geom_line(data = simdt %>% 
+               dplyr::filter(observed == 1) %>%
+               tidyr::gather(var, value, hazard, tumor_size) %>% 
+               mutate(grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
+                      , init = paste('init_size:',round(init_size, digits = 1), sep='')
+                      )
+             , mapping = aes(x = t, y = value, colour = var, group = var)) + 
+      facet_wrap(~patid + grt + init, scale = 'free_y') +
+      scale_colour_discrete("Measurement type")
+    
+    pl <- 
+      pl1 +
+       geom_vline(data = 
+                    simdt %>% 
+                    dplyr::filter(observed == 1) %>% 
+                    group_by(patid) %>% 
+                    dplyr::filter(t == max(t)) %>% 
+                    ungroup() %>% 
+                    dplyr::mutate(
+                      failure_type = ifelse(failure == 1,'failure','censor')
+                      , grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
+                      , init = paste('init_size:',round(init_size, digits = 1), sep='')
+                    )
+                  , aes(xintercept = t, linetype = failure_type), colour = 'black') +
+      scale_linetype_manual('Survival status', values = c('failure' = 'solid', 'censor' = 'dashed'))
+    pl
 }
 
 #' helper functional wrapping 'rep', intended for use with simulate_data
@@ -156,7 +208,7 @@ create_rnorm <- function(mean, sd) {
 left_truncate <- function(.dist, .val, n = n, ...) {
   .dist(n = n*10, ...) %>%
     purrr::keep(~ .x >= .val) %>%
-    sample(., n = n, replace = TRUE)
+    sample(., size = n, replace = TRUE)
 }
   
 #' helper functional for rt, intended for use with simulate_data
@@ -204,4 +256,11 @@ create_rcauchy <- function(location, scale, half = FALSE) {
 #' @returns function taking parameter 'n' returning draws from beta distribution
 create_rbeta <- function(shape1, shape2) {
   purrr::partial(rbeta, shape1 = shape1, shape2 = shape2)
+}
+
+## v = (4/3) * pi * r^3
+## v * (3/4) / pi = r^3
+## (v * (3/4)/pi)^1.3 = r
+vol2rad <- function(volumes) {
+  (volumes * (3/4) / pi)^(1/3)
 }
