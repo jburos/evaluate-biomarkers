@@ -115,22 +115,29 @@ create_scalar <- function(value) {
 #' @param mean
 #' @param sd
 #' 
-#' @returns function taking parameter 'n'
+#' @import purrr
+#' 
+#' @returns function taking parameter 'n' returning draws from normal distribution
+#' 
 create_rnorm <- function(mean, sd) {
   purrr::partial(rnorm, mean = mean, sd = sd)
 } 
 
 #' helper function to truncate a dist 
 #' 
-#' @param .val value 
-#' @param .dist
+#' @param .val minimum value - draws are filtered to be greater than this value
+#' @param .dist function yielding samples to be filtered
+#' @param n number of obs - required parameter to .dist
 #' @param ... params to .dist
 #' 
-#' @returns 
+#' @import purrr
+#' 
+#' @returns output from .dist (vector of length n), filtered so obs >= .val
+#' 
 left_truncate <- function(.dist, .val, n = n, ...) {
   .dist(n = n*10, ...) %>%
     purrr::keep(~ .x >= .val) %>%
-    head(., n = n)
+    sample(., n = n, replace = TRUE)
 }
   
 #' helper functional for rt
@@ -139,8 +146,10 @@ left_truncate <- function(.dist, .val, n = n, ...) {
 #' @param ncp (optional) param to rt. See rt for details
 #' @param half (default FALSE) if true, truncates result to x > 0 
 #' 
-#' @returns function taking parameter 'n'
-create_rt <- function(df, half = FALSE, ncp = NULL) {
+#' @import purrr
+#' 
+#' @returns function taking parameter 'n' returning draws from t distribution
+create_rt <- function(df, half = FALSE, ncp = 0) {
   if (half == TRUE)
     purrr::partial(left_truncate, .dist = rt, .val = ncp, df = df, ncp = ncp)
   else {
