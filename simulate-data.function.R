@@ -125,7 +125,7 @@ simulate_data = function(
     ) %>%
     group_by(patid, failure_event) %>%
     mutate(
-      first_failure = ifelse(failure_event == 1, min(t, na.rm = T), NA) 
+      first_failure = ifelse(failure_event == 1, min(t, na.rm = T), max_t + 1) 
     ) %>% 
     ungroup() %>%
     group_by(patid) %>%
