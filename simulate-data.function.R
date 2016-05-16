@@ -154,6 +154,7 @@ plot_simulated_data <- function(d, n = NULL) {
       semi_join(d %>% 
                   dplyr::distinct(patid) %>%
                   dplyr::select(patid) %>%
+                  dplyr::ungroup() %>%
                   dplyr::sample_n(n)
                 , by = 'patid'
                 )
