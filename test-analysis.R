@@ -2,18 +2,21 @@ rm(list=ls())
 library(dplyr)
 library(ggplot2)
 library(rstan)
+rstan_options(auto_write = TRUE)
+options(mc.cores = min(parallel::detectCores(),3))
+
 source('simulate-data.function.R')
 
 ## get simulated data 
-data <- simulate_data(n = 100, max_size = 2000)
+data <- simulate_data(n = 100, max_size = 4000)
 plot_simulated_data(data, n = 12)
 
 ## distribution of survival times
 ggplot(data %>% 
-         dplyr::filter(observed == TRUE) %>%
+         dplyr::filter(observed == 1) %>%
          group_by(patid) %>% 
          dplyr::summarise(surv_time  = max(t, na.rm = T)
-                          , event = factor(max(failure>0, na.rm = T), labels =  c('failure','censor'), levels = c(1,0))
+                          , event = factor(last(failure_event, order_by = t), levels = c(0,1), labels = c('censor', 'failure'))
                           ) %>%
          ungroup()
        , aes(x = surv_time, group = event, fill = event, colour = event)) +
@@ -22,13 +25,13 @@ ggplot(data %>%
 
 ## summarize inputs to survival analysis (using MLE)
 survd <- data %>%
-  dplyr::filter(observed == TRUE) %>%
+  dplyr::filter(observed == 1) %>%
   dplyr::group_by(patid) %>%
   dplyr::mutate(
     surv_time  = max(t, na.rm = T)
     , init_observed_size = first(observed_size, order_by = t)
     , last_observed_size = last(observed_size, order_by = t)
-    , outcome = ifelse(failure > 0, 1, 0)
+    , outcome = last(failure_event, order_by = t)
   ) %>%
   dplyr::filter(t == surv_time) %>%
   ungroup() %>%
@@ -41,6 +44,10 @@ survd <- data %>%
                 , rescaled_init_size = (init_observed_size - mean_init_size)/sd_init_size
                 ) %>%
   dplyr::select(patid, t, init_observed_size, last_observed_size, avg_growth_rate, outcome, starts_with('rescaled'))
+
+survd %>%
+  group_by(outcome) %>%
+  tally()
 
 ## if only one obs in censor or failure group, revisit data 
 ## Stan code below will be problematic
@@ -68,8 +75,8 @@ biomarkers = c('rescaled_growth_rate')
 M_bg = length(known_covars)
 M_biom = length(biomarkers)
 
-nchains <- 1
-niter <- 10
+nchains <- 3
+niter <- 1000
 nwarmup <- niter/2
 
 init1 <- list()
@@ -101,11 +108,45 @@ standata <- list(
   , Xobs_biom = data_obs %>% dplyr::select(one_of(biomarkers))
   , Xcen_biom = data_cens %>% dplyr::select(one_of(biomarkers))
 )
-
+yobs = data_obs %>% dplyr::select(t) %>% unlist()
+ycens = data_cens %>% dplyr::select(t) %>% unlist()
 
 fit <- stan(file = "./stan-survival-shrinkage/wei_gau.stan"
             , data = standata
             , init = init1
             , chains = nchains, iter = niter
             , warmup = nwarmup
+            , control = list(adapt_delta = 0.98)
             )
+
+
+
+fit2 <- stan(file = "./stan-survival-shrinkage/wei_bg.stan"
+            , data = standata
+            , init = init1
+            , chains = nchains, iter = niter
+            , warmup = nwarmup
+            , control = list(adapt_delta = 0.98)
+)
+
+
+standata_hs <- list(
+  Nobs = nrow(data_obs)
+  , Ncen = nrow(data_cens)
+  , M_bg = M_bg
+  , M_biom = M_biom
+  , yobs = data_obs %>% dplyr::select(t) %>% unlist()
+  , ycen = data_cens %>% dplyr::select(t) %>% unlist()
+  , Xobs_bg = data_obs %>% dplyr::select(one_of(known_covars))
+  , Xcen_bg = data_cens %>% dplyr::select(one_of(known_covars))
+  , Xobs_biom = data_obs %>% dplyr::select(one_of(biomarkers))
+  , Xcen_biom = data_cens %>% dplyr::select(one_of(biomarkers))
+  , nu = 1
+)
+fit3 <- stan(file = "./stan-survival-shrinkage/wei_hs.stan"
+             , data = standata_hs
+             , init = init1
+             , chains = nchains, iter = niter
+             , warmup = nwarmup
+             , control = list(adapt_delta = 0.98)
+)
