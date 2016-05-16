@@ -1,0 +1,3 @@
+[submodule "stan-survival-shrinkage"]
+	path = stan-survival-shrinkage
+	url = git@github.com:to-mi/stan-survival-shrinkage.git
