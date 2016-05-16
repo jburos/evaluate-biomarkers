@@ -122,14 +122,8 @@ simulate_data = function(
     group_by(patid) %>% 
     mutate(
       failure_event = ifelse(failure > failure_threshold, 1, 0)
+      , first_failure = min(ifelse(failure_event == 1, t, max_t + 1), na.rm = T) 
     ) %>%
-    group_by(patid, failure_event) %>%
-    mutate(
-      first_failure = ifelse(failure_event == 1, min(t, na.rm = T), max_t + 1) 
-    ) %>% 
-    ungroup() %>%
-    group_by(patid) %>%
-    mutate(first_failure = min(first_failure, na.rm = T)) %>%
     ## marked post-failure events as unobserved
     dplyr::mutate(observed = ifelse(t > first_failure, 0, observed))
 
