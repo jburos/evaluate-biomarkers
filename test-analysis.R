@@ -116,7 +116,7 @@ fit <- stan(file = "./stan-survival-shrinkage/wei_gau.stan"
             , init = init1
             , chains = nchains, iter = niter
             , warmup = nwarmup
-            , control = list(adapt_delta = 0.98)
+            , control = list(adapt_delta = 0.995)
             )
 
 
@@ -126,8 +126,10 @@ fit2 <- stan(file = "./stan-survival-shrinkage/wei_bg.stan"
             , init = init1
             , chains = nchains, iter = niter
             , warmup = nwarmup
-            , control = list(adapt_delta = 0.98)
+            , control = list(adapt_delta = 0.995)
 )
+
+
 
 
 standata_hs <- list(
@@ -148,5 +150,14 @@ fit3 <- stan(file = "./stan-survival-shrinkage/wei_hs.stan"
              , init = init1
              , chains = nchains, iter = niter
              , warmup = nwarmup
-             , control = list(adapt_delta = 0.98)
+             , control = list(adapt_delta = 0.995)
 )
+
+fit4 <- stan(file = "./stan-survival-shrinkage/wei_lap.stan"
+             , data = standata
+             , init = init1
+             , chains = nchains, iter = niter
+             , warmup = nwarmup
+             , control = list(adapt_delta = 0.995)
+)
+
