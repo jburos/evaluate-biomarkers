@@ -84,7 +84,7 @@ simulate_data = function(
     arrange(t) %>%
     dplyr::mutate(
       growth = ifelse(t == 0, init_size, ifelse(growth_rate + growth_rate_noise < 0, 0, growth_rate + growth_rate_noise))
-      , tumor_size = accumulate(growth
+      , tumor_size = purrr::accumulate(growth
                                 , function(base, rate) {
                                     dTdt <- (base*rate*(max_size-base)/max_size)
                                     #print(paste0('base: ',round(base),'; rate: ',round(rate),'; dTdt'))
