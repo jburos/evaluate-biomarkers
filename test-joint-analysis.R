@@ -177,4 +177,7 @@ standata2 <- list(
 )
 
 testfit2 <- stan('long_surv_progression.stan', data = standata2, chains = 1, iter = 10)
+stanfit2 <- stan('long_surv.stan', data = standata2, chains = 3, iter = 1000)
+
+print(stanfit2, 'beta')
 
