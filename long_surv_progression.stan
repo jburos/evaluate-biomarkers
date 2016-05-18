@@ -37,16 +37,18 @@ data {
   int<lower=0, upper=T> pr_progress[N];
   matrix[N,X] covars;
 }
+/* 
 transformed data {
   real r;
   real c;
   r <- 0.1;
   c <- 0.01;
 }
+*/
 parameters {
-  real<lower=0> risk1;  // multiplier determining overall rate of progression
-  real<lower=0> risk2;  // multiplier determining overall rate of mortality | no progression
-  real<lower=0> risk3;  // multiplier determining overall rate mortality | progression 
+  real risk1;  // multiplier determining overall rate of progression
+  real risk2;  // multiplier determining overall rate of mortality | no progression
+  real risk3;  // multiplier determining overall rate mortality | progression 
   vector<lower=0>[T] base1; // baseline hazard for each timepoint t, for each submodel 
   vector<lower=0>[T] base2; // 
   vector<lower=0>[T] base3; // 
@@ -62,10 +64,10 @@ model {
   risk3 ~ cauchy(0, 3);
     
   // priors on baseline hazard function(s)
-  base1 ~ gamma(r * risk1 * c, c);
-  base2 ~ gamma(r * risk2 * c, c);
-  base3 ~ gamma(r * risk3 * c, c);
-
+  base1 ~ normal(risk1, 1);
+  base2 ~ normal(risk2, 1);
+  base3 ~ normal(risk3, 1);
+  
   // priors on betas (shared component)
   beta_shared ~ normal(0, 1);
   // per submodel (deviates from beta_shared)
