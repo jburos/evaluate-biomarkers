@@ -145,6 +145,8 @@ testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
 
 stanfit <- stan('long_surv.stan', data = standata, chains = 3, iter = 1000)
 
+print(stanfit, 'beta')
+
 ## ------ semi-competing-risks survival model using stan -------
 
 ## look at joint model for disease progression & survival 
@@ -152,11 +154,12 @@ stanfit <- stan('long_surv.stan', data = standata, chains = 3, iter = 1000)
 ## using parameterization here: http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4744123/ 
 ## this allows for post-progression risk to be different from pre-progression risk
 
-newdata2 <- standata %>%
+newdata2 <- newdata %>%
   dplyr::group_by(patid) %>%
   dplyr::arrange(t) %>%
   dplyr::mutate(progression = ifelse(failure > 0, 1, 0)
-                , pr_progression = cumsum(progression, order_by = t)
+                , cum_progression = cumsum(progression)
+                , pr_progression = c(0, cum_progression[-n()]) ## take previous obs of cum_progression for current timepoint
                 ) %>%
   ungroup()
   
