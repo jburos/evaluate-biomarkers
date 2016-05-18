@@ -146,7 +146,7 @@ simulate_data = function(
 #' simdt <- simulate_data()
 #' plot_simualated_data(simdt)
 #' 
-plot_simulated_data <- function(d, n = NULL) {
+plot_simulated_data <- function(d, n = NULL, progress_threshold = 2) {
   ## filter input data to restrict to N products
   ## sampled at random
   if (!is.null(n)) {
@@ -155,7 +155,7 @@ plot_simulated_data <- function(d, n = NULL) {
                   dplyr::distinct(patid) %>%
                   dplyr::select(patid) %>%
                   dplyr::ungroup() %>%
-                  dplyr::sample_n(n)
+                  dplyr::sample_n(n) 
                 , by = 'patid'
                 )
   }
@@ -163,18 +163,20 @@ plot_simulated_data <- function(d, n = NULL) {
   ## plot time-series data 
   pl1 <- 
     ggplot2::ggplot() + 
-    ggplot2::geom_line(data = d %>% 
-             dplyr::filter(observed == 1) %>%
-             tidyr::gather(var, value, hazard, tumor_size) %>% 
-             dplyr::mutate(grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
-                    , init = paste('init_size:',round(init_size, digits = 1), sep='')
-                    )
-           , mapping = ggplot2::aes(x = t, y = value, colour = var, group = var)) + 
+    ggplot2::geom_line(
+      data = 
+        d %>% 
+        dplyr::filter(observed == 1) %>%
+        tidyr::gather(var, value, hazard, tumor_size) %>% 
+        dplyr::mutate(grt = paste('growth_rate:',round(growth_rate, digits = 1),sep=' ')
+                      , init = paste('init_size:',round(init_size, digits = 1), sep=' ')
+        )
+      , mapping = ggplot2::aes(x = t, y = value, colour = var, group = var)) + 
     ggplot2::facet_wrap(~patid + grt + init, scale = 'free_y') +
     ggplot2::scale_colour_discrete("Measurement type")
     
   ## add censor times
-  pl <- 
+  pl2 <- 
     pl1 +
     ggplot2::geom_vline(data = 
                  d %>% 
@@ -183,12 +185,27 @@ plot_simulated_data <- function(d, n = NULL) {
                  dplyr::filter(t == max(t)) %>% 
                  dplyr::ungroup() %>% 
                  dplyr::mutate(
-                   failure_type = ifelse(failure == 1,'failure','censor')
-                   , grt = paste('growth_rate:',round(growth_rate, digits = 1),sep='')
-                   , init = paste('init_size:',round(init_size, digits = 1), sep='')
+                   failure_type = ifelse(failure_event == 1,'failure','censor')
+                   , grt = paste('growth_rate: ',round(growth_rate, digits = 1),sep='')
+                   , init = paste('init_size: ',round(init_size, digits = 1), sep='')
                  )
                , ggplot2::aes(xintercept = t, linetype = failure_type), colour = 'black') +
     ggplot2::scale_linetype_manual('Survival status', values = c('failure' = 'solid', 'censor' = 'dashed'))
+  
+  ## add "failure" (progression) events 
+  pl <- 
+    pl2 + 
+    ggplot2::geom_point(
+      data = 
+        d %>%
+        dplyr::filter(observed == 1) %>%
+        dplyr::filter(failure >= progress_threshold & failure_event == 0) %>% 
+        dplyr::mutate(
+          failure_type = 'progression'
+          , grt = paste('growth_rate: ',round(growth_rate, digits = 1),sep='')
+          , init = paste('init_size: ',round(init_size, digits = 1), sep='')
+        )
+      , ggplot2::aes(x = t, y = hazard, shape = failure_type), colour = 'black', size = 1)
   pl
 }
 
