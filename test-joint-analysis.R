@@ -11,10 +11,11 @@ source('simulate-data.function.R')
 
 ## get simulated data 
 data <- simulate_data(n = 100, max_size = 4000, max_t = 50)
-plot_simulated_data(data, n = 12, progress_threshold = 2)
+pl <- plot_simulated_data(data, n = 12, progress_threshold = 2)
+ggsave(pl, file = 'simulated_data.png')
 
 ## distribution of survival times
-ggplot(data %>% 
+pl <- ggplot(data %>% 
          dplyr::filter(observed == 1) %>%
          group_by(patid) %>% 
          dplyr::summarise(surv_time  = max(t, na.rm = T)
@@ -24,6 +25,7 @@ ggplot(data %>%
        , aes(x = surv_time, group = event, fill = event, colour = event)) +
   geom_histogram(alpha = 0.2) +
   facet_wrap(~event)
+ggsave(pl, file = 'distribution of event times.png')
 
 ## summarize inputs to survival analysis (using MLE)
 survd <- data %>%
