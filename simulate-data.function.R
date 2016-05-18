@@ -56,7 +56,7 @@ simulate_data = function(
   , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = rnorm(n, mean = 3, sd = 1)) }
   , hazard_fun = function(row) { row$intercept + row$tumor_size*row$beta_tumor_size + row$hazard_noise }
   , censor_time_fun = create_scalar(value = max_t)   ## create_rt(df = 10, ncp = 20, half = TRUE)
-  , failure_threshold = 1 ## more than this many events == FAILURE
+  , failure_threshold = 2 ## more than this many events == FAILURE
   ) {
 
   ## simulate tumor growth over time at patient level
@@ -115,7 +115,7 @@ simulate_data = function(
     simdt %>%
     rowwise() %>% 
     ## calc prob of failure (rowwise b/c each obs has different hazard value)
-    dplyr::mutate(eff_hazard = round(ifelse(hazard >= 4000, 4000, hazard), digits = 0)
+    dplyr::mutate(eff_hazard = round(ifelse(hazard >= 4000, 4000, ifelse(hazard < 0, 0, hazard)), digits = 0)
                   , failure = rbinom(n = n(), size = eff_hazard, prob = prob_failure)
                   ) %>% 
     ungroup() %>% 
@@ -125,7 +125,8 @@ simulate_data = function(
       , first_failure = min(ifelse(failure_event == 1, t, max_t + 1), na.rm = T) 
     ) %>%
     ## marked post-failure events as unobserved
-    dplyr::mutate(observed = ifelse(t > first_failure, 0, observed))
+    dplyr::mutate(observed = ifelse(t > first_failure, 0, observed)) %>%
+    ungroup()
 
   simdt <- simdt2
   rm(simdt2)
