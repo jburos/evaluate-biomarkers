@@ -56,7 +56,7 @@ parameters {
   vector[X] beta2;               // 
   vector[X] beta3;               // 
   vector[X] beta_shared;         // overall means for each beta; common between the submodels
-  vector[S] frailty;             // subject-level frailty term
+  vector<lower=0>[S] frailty;             // subject-level frailty term
 }
 model {
   risk1 ~ cauchy(0, 2);
