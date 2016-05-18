@@ -77,12 +77,12 @@ model {
     beta3[x] ~ normal(beta_shared[x], 1);
   }
   for (n in 1:N) {
-    progression[n] ~ poisson(exp(covars[n,]*beta1)*base1[t[n]]*frailty[s[n]]);
+    progression[n] ~ poisson(exp(covars[n,]*beta_shared)*base1[t[n]]*frailty[s[n]]);
     if (pr_progress[n] == 0) {
-      event[n] ~ poisson(exp(covars[n,]*beta2)*base2[t[n]]*frailty[s[n]]);
+      event[n] ~ poisson(exp(covars[n,]*beta_shared)*base2[t[n]]*frailty[s[n]]);
     }
     if (pr_progress[n] > 0) {
-      event[n] ~ poisson(exp(covars[n,]*beta3)*base3[t[n]]*frailty[s[n]]);
+      event[n] ~ poisson(exp(covars[n,]*beta_shared)*base3[t[n]]*frailty[s[n]]);
     }
   }
 }
