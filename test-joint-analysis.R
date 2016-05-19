@@ -120,15 +120,17 @@ if (TRUE == FALSE) {
 library(survival)
 #aareg(formula = Surv(t, outcome) ~ init_observed_size, data = survd, nmin = 1)
 survfit <- coxph(formula = Surv(last_t, outcome) ~ rescaled_init_size, data = survd)
+print(survfit)
 
 ## ------ test growth model using lmer -------
 
 library(lme4)
+library(arm)
 growthfit <- lmer(rescaled_patient_observed_size ~ t + rescaled_init_size + 
                     (1 + rescaled_init_size + t | patid)
                   , data = newdata
                   )
-                  
+display(growthfit)        
 
 ## ------ test survival model (long version) using stan -------
 
@@ -178,8 +180,91 @@ standata2 <- list(
   , pr_progress = newdata2$pr_progression
 )
 
-testfit2 <- stan('long_surv_progression.stan', data = standata2, chains = 1, iter = 10)
-stanfit2 <- stan('long_surv_progression.stan', data = standata2, chains = 3, iter = 1000)
+testfit2 <- stan('long_surv_progression.stan'
+                 , model_name = 'semi-competing risks model with 3 submodels & constrained coefs'
+                 , data = standata2
+                 , chains = 1
+                 , iter = 10
+                 )
+stanfit2 <- stan('long_surv_progression.stan'
+                 , data = standata2
+                 , chains = 3
+                 , iter = 1000
+                 )
 
-print(stanfit2, c('beta_shared', 'beta1', 'beta2', 'beta3'))
+print(stanfit2, c('beta_shared'))
+
+## variation allowing betas to vary across submodels
+testfit2a <- stan('long_surv_progression_free_beta.stan'
+                 , model_name = 'semi-competing risks model with 3 submodels & unconstrained coefs'
+                 , data = standata2
+                 , chains = 1
+                 , iter = 10
+)
+stanfit2a <- stan('long_surv_progression_free_beta.stan'
+                 , data = standata2
+                 , chains = 3
+                 , iter = 1000
+)
+
+print(stanfit2a, c('beta_shared', 'beta1', 'beta2', 'beta3'))
+
+## variation of model using only 2 submodels.
+
+
+standata3 <- list(
+  N = nrow(newdata2)
+  , S = max(newdata2$patid)
+  , T = max(newdata2$t)
+  , X = 1
+  , s = newdata2$patid
+  , t = newdata2$t
+  , event = newdata2$failure_event
+  , covars = newdata2 %>% dplyr::select(rescaled_init_size)
+  , progression = newdata2$progression
+  , pr_progress = newdata2$pr_progression
+)
+
+testfit3 <- stan('long_surv_progression2.stan'
+                 , model_name = 'semi-competing risks model with 2 submodels'
+                 , data = standata3
+                 , chains = 1
+                 , iter = 10
+                 )
+stanfit3 <- stan('long_surv_progression2.stan'
+                 , data = standata3
+                 , chains = 3
+                 , iter = 1000
+                 )
+
+print(stanfit3, c('beta'))
+
+## variation of model allowing betas to be different
+
+standata4 <- list(
+  N = nrow(newdata2)
+  , S = max(newdata2$patid)
+  , T = max(newdata2$t)
+  , X = 1
+  , s = newdata2$patid
+  , t = newdata2$t
+  , event = newdata2$failure_event
+  , covars = newdata2 %>% dplyr::select(rescaled_init_size)
+  , progression = newdata2$progression
+  , pr_progress = newdata2$pr_progression
+)
+
+testfit4 <- stan('long_surv_progression2_free_beta.stan'
+                 , model_name = 'semi-competing risks model with 2 submodels & unconstrained betas'
+                 , data = standata4
+                 , chains = 1
+                 , iter = 10
+                 )
+stanfit4 <- stan('long_surv_progression2_free_beta.stan'
+                 , data = standata4
+                 , chains = 3
+                 , iter = 1000
+                 )
+
+print(stanfit4, c('beta1','beta2'))
 

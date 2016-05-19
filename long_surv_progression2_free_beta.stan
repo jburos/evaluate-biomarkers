@@ -4,8 +4,7 @@
 
 submodels : 
    1: risk for progression
-   2: risk for mortality | no progression
-   3: risk for mortality | pr_progression
+   2: risk for mortality
 
 Variable naming:
  N            = total number of observations (length of data)
@@ -48,34 +47,31 @@ transformed data {
 parameters {
   real risk1;  // multiplier determining overall rate of progression, for each submodel
   real risk2;  // 
-  real risk3;  // 
+  //real risk3;  // 
   vector<lower=0>[T] base1; // baseline hazard for each timepoint t, for each submodel 
   vector<lower=0>[T] base2; // 
-  vector<lower=0>[T] base3; // 
-  vector[X] beta_shared;         // overall means for each beta; common between the submodels
+  //vector<lower=0>[T] base3; // 
+  vector[X] beta1;         // coefficients for each submodel
+  vector[X] beta2; 
   vector<lower=0>[S] frailty;    // subject-level frailty term
 }
 model {
   // hyperpriors on baseline hazard(s)
   risk1 ~ cauchy(0, 2);
   risk2 ~ cauchy(0, 2);
-  risk3 ~ cauchy(0, 3);
+  //risk3 ~ cauchy(0, 3);
     
   // priors on baseline hazard(s)
   base1 ~ normal(risk1, 1);
   base2 ~ normal(risk2, 1);
-  base3 ~ normal(risk3, 1);
+  //base3 ~ normal(risk3, 1);
   
-  // priors on betas (shared across all submodels)
-  beta_shared ~ normal(0, 1);
+  // priors on betas (separate for each submodel)
+  beta1 ~ normal(0, 1);
+  beta2 ~ normal(0, 1);
   
   for (n in 1:N) {
-    progression[n] ~ poisson(exp(covars[n,]*beta_shared)*base1[t[n]]*frailty[s[n]]);
-    if (pr_progress[n] == 0) {
-      event[n] ~ poisson(exp(covars[n,]*beta_shared)*base2[t[n]]*frailty[s[n]]);
-    }
-    if (pr_progress[n] > 0) {
-      event[n] ~ poisson(exp(covars[n,]*beta_shared)*base3[t[n]]*frailty[s[n]]);
-    }
+    progression[n] ~ poisson(exp(covars[n,]*beta1)*base1[t[n]]*frailty[s[n]]);
+    event[n] ~ poisson(exp(covars[n,]*beta2)*base2[t[n]]*frailty[s[n]]);
   }
 }

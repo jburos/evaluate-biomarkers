@@ -53,6 +53,9 @@ parameters {
   vector<lower=0>[T] base2; // 
   vector<lower=0>[T] base3; // 
   vector[X] beta_shared;         // overall means for each beta; common between the submodels
+  vector[X] beta1;         // submodel-specific covariate coefficients
+  vector[X] beta2;         // 
+  vector[X] beta3;         // 
   vector<lower=0>[S] frailty;    // subject-level frailty term
 }
 model {
@@ -68,14 +71,17 @@ model {
   
   // priors on betas (shared across all submodels)
   beta_shared ~ normal(0, 1);
+  beta1 ~ normal(beta_shared, 1);
+  beta2 ~ normal(beta_shared, 1);
+  beta3 ~ normal(beta_shared, 1);
   
   for (n in 1:N) {
-    progression[n] ~ poisson(exp(covars[n,]*beta_shared)*base1[t[n]]*frailty[s[n]]);
+    progression[n] ~ poisson(exp(covars[n,]*beta1)*base1[t[n]]*frailty[s[n]]);
     if (pr_progress[n] == 0) {
-      event[n] ~ poisson(exp(covars[n,]*beta_shared)*base2[t[n]]*frailty[s[n]]);
+      event[n] ~ poisson(exp(covars[n,]*beta2)*base2[t[n]]*frailty[s[n]]);
     }
     if (pr_progress[n] > 0) {
-      event[n] ~ poisson(exp(covars[n,]*beta_shared)*base3[t[n]]*frailty[s[n]]);
+      event[n] ~ poisson(exp(covars[n,]*beta3)*base3[t[n]]*frailty[s[n]]);
     }
   }
 }
