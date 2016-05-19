@@ -56,7 +56,8 @@ simulate_data = function(
   , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = rnorm(n, mean = 3, sd = 1)) }
   , hazard_fun = function(row) { row$intercept + row$tumor_size*row$beta_tumor_size + row$hazard_noise }
   , censor_time_fun = create_scalar(value = max_t)   ## create_rt(df = 10, ncp = 20, half = TRUE)
-  , failure_threshold = 2 ## more than this many events == FAILURE
+  , failure_threshold = 3 ## >= this many events == FAILURE
+  , progression_threshold = 2 ## >= this many events == PROGRESSION (disease progression)
   ) {
 
   ## simulate tumor growth over time at patient level
@@ -116,13 +117,17 @@ simulate_data = function(
     rowwise() %>% 
     ## calc prob of failure (rowwise b/c each obs has different hazard value)
     dplyr::mutate(eff_hazard = round(ifelse(hazard >= 4000, 4000, ifelse(hazard < 0, 0, hazard)), digits = 0)
-                  , failure = rbinom(n = n(), size = eff_hazard, prob = prob_failure)
+                  , events = rbinom(n = n(), size = eff_hazard, prob = prob_failure)
                   ) %>% 
     ungroup() %>% 
     group_by(patid) %>% 
     mutate(
-      failure_event = ifelse(failure > failure_threshold, 1, 0)
-      , first_failure = min(ifelse(failure_event == 1, t, max_t + 1), na.rm = T) 
+      failure = ifelse(events >= failure_threshold, 1, 0)
+      , first_failure = min(ifelse(failure == 1, t, max_t + 1), na.rm = T) 
+      , progression = ifelse(events >= progression_threshold, 1, 0)
+      , first_progression = min(ifelse(progression == 1, t, max_t + 1), na.rm = T)
+      , failure_or_progression = ifelse(failure == 1, 1, ifelse(progression == 1, 1, 0))
+      , first_failure_or_failure = min(ifelse(failure_or_progression == 1, t, max_t + 1), na.rm = T)
     ) %>%
     ## marked post-failure events as unobserved
     dplyr::mutate(observed = ifelse(t > first_failure, 0, observed)) %>%
@@ -147,7 +152,7 @@ simulate_data = function(
 #' simdt <- simulate_data()
 #' plot_simualated_data(simdt)
 #' 
-plot_simulated_data <- function(d, n = NULL, progress_threshold = 2) {
+plot_simulated_data <- function(d, n = NULL) {
   ## filter input data to restrict to N products
   ## sampled at random
   if (!is.null(n)) {
@@ -186,7 +191,7 @@ plot_simulated_data <- function(d, n = NULL, progress_threshold = 2) {
                  dplyr::filter(t == max(t)) %>% 
                  dplyr::ungroup() %>% 
                  dplyr::mutate(
-                   failure_type = ifelse(failure_event == 1,'failure','censor')
+                   failure_type = ifelse(failure == 1,'failure','censor')
                    , grt = paste('growth_rate: ',round(growth_rate, digits = 1),sep='')
                    , init = paste('init_size: ',round(init_size, digits = 1), sep='')
                  )
@@ -199,8 +204,7 @@ plot_simulated_data <- function(d, n = NULL, progress_threshold = 2) {
     ggplot2::geom_point(
       data = 
         d %>%
-        dplyr::filter(observed == 1) %>%
-        dplyr::filter(failure >= progress_threshold & failure_event == 0) %>% 
+        dplyr::filter(observed == 1 & progression == 1) %>%
         dplyr::mutate(
           failure_type = 'progression'
           , grt = paste('growth_rate: ',round(growth_rate, digits = 1),sep='')
