@@ -123,10 +123,13 @@ simulate_data = function(
     group_by(patid) %>% 
     mutate(
       failure = ifelse(events >= failure_threshold, 1, 0)
+      , failure_status = max(failure)
       , first_failure = min(ifelse(failure == 1, t, max_t + 1), na.rm = T) 
       , progression = ifelse(events >= progression_threshold, 1, 0)
+      , progression_status = max(progression)
       , first_progression = min(ifelse(progression == 1, t, max_t + 1), na.rm = T)
       , failure_or_progression = ifelse(failure == 1, 1, ifelse(progression == 1, 1, 0))
+      , failure_or_progression_status = max(failure_or_progression)
       , first_failure_or_failure = min(ifelse(failure_or_progression == 1, t, max_t + 1), na.rm = T)
     ) %>%
     ## marked post-failure events as unobserved
