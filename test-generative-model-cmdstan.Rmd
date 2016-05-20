@@ -1,0 +1,251 @@
+---
+title: "Test generative model using CmdStan"
+author: "Jacqueline Buros"
+date: "May 20, 2016"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r init, results = 'hide', echo = F}
+suppressMessages(suppressWarnings({
+  rm(list=ls())
+  library(dplyr)
+  library(ggplot2)
+  library(rstan)
+  library(survival)
+  library(arm)
+  library(lme4)
+  rstan_options(auto_write = TRUE)
+  options(mc.cores = min(parallel::detectCores(),3))
+  source('simulate-data.function.R')
+  source('prep-data.function.R')
+  source('make-data-plots.function.R')
+}))
+```
+
+## Intro
+
+This is a short analysis to test various options for estimating the "generative" model in Stan,
+and specifically using CmdStan. 
+
+There are several reasons why I'm looking at using CmdStan:
+
+1. Rstan is prone to fail/crash at some point, particularly for long-running jobs
+    - preliminary testing shows that these models will take a while to run
+2. Better diagnostics & more up to date codebase (e.g. support for stiff odes) with CmdStan
+3. Having problems running R on dev nodes (more about this later ... )
+
+## Simulated data
+
+Data were simulated according to the `simulate_data()` function. See that function for more details.
+
+Here we will use standard functions designed to help in post-processing of the simulated data.
+
+```{r sim-data}
+set.seed(1234)
+d <- simulate_data(n = 100, max_size = 4000, max_t = 50, failure_threshold = 4, progression_threshold = 3)
+make_data_plots(d)
+```
+
+We will next prepare two data files for analysis - one _per patient_, which will be suitable for survival analysis, and another _per observation_. This latter, _per-observation_ dataset is the one we will predominantly pass to cmdstan.
+
+```{r prep-data}
+res <- prep_data(d)
+adata <- res$per_observation
+survd <- res$per_patient
+rm(res)
+```
+
+## Standard models 
+
+Just for kicks, let's run a few standard models on this data. 
+
+We will focus on two covariates in particular - 
+
+1. Initial tumor size (observed)
+2. Avg rate of change in tumor size: (final - initial) / time
+
+We can look at these in terms of failure (survival), or the combintion of disease progression and/or failure. 
+
+#### with failure as the outcome 
+
+Looking at initial tumor size as a predictor : 
+
+```{r surv1}
+
+survfit1 <- coxph(
+  formula = Surv(first_failure, failure_status) ~ rescaled_init_size
+  , data = survd
+  )
+print(survfit1)
+```
+
+
+And, including change in tumor size : 
+
+```{r surv2}
+
+survfit <- coxph(
+  formula = Surv(first_failure, failure_status) ~ rescaled_init_size + rescaled_growth_rate
+  , data = survd
+  )
+print(survfit)
+```
+
+#### with progression/failure as the outcome 
+
+Looking at initial tumor size as a predictor : 
+
+```{r surv3}
+
+survfit <- coxph(
+  formula = Surv(first_failure_or_progression, failure_or_progression_status) ~ rescaled_init_size
+  , data = survd
+  )
+print(survfit)
+```
+
+
+And, including change in tumor size : 
+
+```{r surv4}
+survfit <- coxph(
+  formula = Surv(first_failure_or_progression, failure_or_progression_status) ~ rescaled_init_size + rescaled_growth_rate
+  , data = survd
+  )
+print(survfit)
+```
+
+
+## Stan code for basic survival model 
+
+We have Stan code for the basic survival model. Let's run it now just to get a sense of how it works.
+
+```{r surv-model}
+standata <- list(
+  N = nrow(adata)
+  , S = max(adata$patid)
+  , T = max(adata$t)
+  , X = 1
+  , s = adata$patid
+  , t = adata$t
+  , event = adata$failure
+  , covars = adata %>% dplyr::select(rescaled_init_size)
+)
+
+testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
+
+stanfit <- stan('long_surv.stan', data = standata, chains = 3, iter = 1000)
+
+print(stanfit, 'beta')
+```
+
+Now, this is not _identical_ to the survival analysis, but we should see very similar results to the estimates we got from `coxph`.
+
+Let's confirm this now.
+
+```{r review-estimates}
+print(survfit1)
+```
+
+## Semi-competing risks model 
+
+We additionally have Stan code for a semi-competing risks model. This analysis will be summarized separately.
+
+## Generative model 
+
+We are finally working on what I'll call the "generative model" -- this is the model that more closely mimics the data generating process we hypothesized might be at work.
+
+The code right now is making use of the `integrate_ode` function in Stan. 
+
+We will first review how this works & then test out the implementation using CmdStan.
+
+### Ex 1: using stan to simulate data
+
+Here is the stan file :
+
+```{r echo-stan-sim}
+file_path <- 'generative_model_sim_data.stan'
+lines <- readLines(file_path, encoding="ASCII")
+for (n in 1:length(lines)) cat(lines[n],'\n')
+```
+
+```{r sim-data-stan}
+## pick a random patient; pass these parameters to the stan file 
+sample_data <- adata %>% semi_join(adata %>% sample_n(1) %>% dplyr::select(patid), by = 'patid')
+
+sample_params <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , init_vol = unique(sample_data$init_size)
+  , growth_rate = unique(sample_data$growth_rate)
+  , max_size = 4000
+)
+testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains = 1, iter = 100, algorithm = 'Fixed_param')
+print(testfit)
+```
+
+### Ex 2: estimating parameters for a single patient 
+
+Next we want to try to use `Stan` to estimate the growth rate for a single patient's tumor.
+
+We will try to set this up as a "best case" scenario, where we will tell Stan what the max-size is, and we will also estimate this using actual _tumor size_ measurements, instead of the diameter measurements (with measurement error) that were simulated. 
+
+Here is the stan file we'll be using to estimate this:
+
+```{r echo-stan-single-pat}
+file_path <- 'generative_model_single_obs_more_params.stan'
+lines <- readLines(file_path, encoding="ASCII")
+for (n in 1:length(lines)) cat(lines[n],'\n')
+```
+
+#### invoking CmdStan
+
+The process for invoking this from CmdStan involves a few steps : 
+
+1. Write out data to file
+2. Call "make" to translate *.stan -> *.cpp -> executable
+3. invoke executable on the data file, with params (possibly multiple chains)
+
+Written in R code, this looks like : 
+
+```{r invoke-cmdstan, echo=TRUE, warning = FALSE, eval = TRUE}
+## prep data for stan
+growthdata <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$tumor_size
+  , max_size = 4000
+)
+## call using cmdstan instead of rstan. more reliable for longer-running models
+stan_home <- '/usr/local/Cellar/cmdstan/2.9.0'
+modelpath <- file.path(getwd(),'generative_model_single_obs_more_params.stan')
+modelpath <- gsub(modelpath, pattern = "(.*)\\.stan", replacement = '\\1')
+modelname <- gsub(modelpath, pattern = ".*\\/([^\\/.]+)$", replacement = "\\1")
+datafile <- file.path(getwd(),paste0(modelname,'.data.R'))
+## write data to disk
+with(growthdata, stan_rdump(names(growthdata), file = datafile))
+## translate stan -> c++; compile to executable
+system(paste0('(cd ',stan_home,' && make ',modelpath,')'))
+## test on 10 iterations
+
+system(paste0('./',modelname,' diagnose data file=',datafile))
+system(paste0('./',modelname,' sample num_samples=5 num_warmup=5 random seed=12345 data file=',datafile))
+```
+
+#### invoking rstan
+
+```{r invoke-rstan, echo = TRUE, eval = FALSE}
+growthdata <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$tumor_size
+  , max_size = 4000
+)
+testfit <- stan('generative_model_single_obs_more_params.stan', data = growthdata, iter=10, chains = 1)
+```
+
+
