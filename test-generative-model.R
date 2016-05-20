@@ -52,16 +52,28 @@ growthfit <- lmer(rescaled_patient_observed_size ~ t + rescaled_init_size +
                   )
 display(growthfit)        
 
+
+## ------ test out ode using gen quant block ------ 
+
+sample_data <- adata %>% semi_join(adata %>% sample_n(1) %>% dplyr::select(patid), by = 'patid')
+
+sample_params <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , init_vol = unique(sample_data$init_size)
+  , growth_rate = unique(sample_data$growth_rate)
+  , max_size = 4000
+)
+testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains = 1, iter = 100, algorithm = 'Fixed_param')
+
 ## ------ first version of generative model using stan -------
 
 
-sample_data <- adata %>% semi_join(adata %>% sample_n(1) %>% dplyr::select(patid), by = 'patid')
 ### testing model for change in tumor size over time 
 ## measured with error as "diameter" of the tumor
 growthdata <- list(
   N_obs = nrow(sample_data)
-  , obs_s = sample_data$patid
   , obs_t = sample_data$t
   , obs_size = sample_data$tumor_size
 )
-testfit <- stan('generative_model2.stan', data = growthdata, chains = 1, iter = 10)
+testfit <- stan('generative_model_single_obs.stan', data = growthdata, chains = 1, iter = 10)
