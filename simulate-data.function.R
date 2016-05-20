@@ -130,7 +130,7 @@ simulate_data = function(
       , first_progression = min(ifelse(progression == 1, t, max_t + 1), na.rm = T)
       , failure_or_progression = ifelse(failure == 1, 1, ifelse(progression == 1, 1, 0))
       , failure_or_progression_status = max(failure_or_progression)
-      , first_failure_or_failure = min(ifelse(failure_or_progression == 1, t, max_t + 1), na.rm = T)
+      , first_failure_or_progression = min(ifelse(failure_or_progression == 1, t, max_t + 1), na.rm = T)
     ) %>%
     ## marked post-failure events as unobserved
     dplyr::mutate(observed = ifelse(t > first_failure, 0, observed)) %>%
