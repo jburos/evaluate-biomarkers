@@ -65,6 +65,7 @@ sample_params <- list(
   , max_size = 4000
 )
 testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains = 1, iter = 100, algorithm = 'Fixed_param')
+print(testfit)
 
 ## ------ first version of generative model using stan -------
 
@@ -76,4 +77,5 @@ growthdata <- list(
   , obs_t = sample_data$t
   , obs_size = sample_data$tumor_size
 )
-testfit <- stan('generative_model_single_obs.stan', data = growthdata, chains = 1, iter = 10)
+growthtest <- stan('generative_model_single_obs.stan', data = growthdata, chains = 1, iter = 10)
+growthfit <- stan('generative_model_single_obs.stan', data = growthdata, chains = 3, iter = 1000)

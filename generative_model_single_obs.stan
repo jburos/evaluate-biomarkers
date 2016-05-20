@@ -1,24 +1,9 @@
 
 /*  notes about input data &/or the model
 
-Variable naming:
- N            = total number of observations (length of data)
- S            = number of sample ids
- T            = max timepoint (number of timepoint ids)
- X            = number of covariates
- s            = sample id for each obs
- t            = timepoint id for each obs
- failure      = integer indicating if there was a failure event at time t for sample s
- progression  = integer indicating if there was progression at time t for sample s
- risk_covars  = real matrix of risk factors for failure/progression
- 
- -- tumor-measurement timepoints --
  N_obs        = int; number of measurement occasions (length of data)
- obs_s        = int; sample id for each measurement
  obs_t        = int; timepoint (id) for each measurement occasion
  obs_size     = real; tumor measurement at time t (use 0 when no measurement)
-
-( size_covars  = real matrix of covars potentially influencing rate of growth )
 
 */
 // Jacqueline Buros Novik <jackinovik@gmail.com>
@@ -63,23 +48,7 @@ functions {
 
 }
 data {
-  
-  // inputs to the event model
-//  int<lower=1> N;
-//    int<lower=1> S;
-//  int<lower=1> T;
-//  int<lower=0> X;
-//  int<lower=1, upper=N> s[N];
-//  int<lower=1, upper=T> t[N];
-//  int<lower=0, upper=1> event[N];
-//  int<lower=0, upper=1> progression[N]; 
-//  matrix[N,X] risk_covars;
-
-  // inputs to the growth model
   int<lower=0> N_obs;
-//  int<lower=0> T_obs;
-//  real<lower=0> unique_T[T_obs]; // actual timepoints of observations
-//  int<lower=0> obs_s[N_obs];
   real<lower=0> obs_t[N_obs]; // timepoint ids
   real<lower=0> obs_size[N_obs];
 }
@@ -94,9 +63,6 @@ parameters {
   real<lower=0> growth_rate;         // rate of growth
   real<lower=0> meas_error;          // global measurement error of diameters
   real<lower=0> init_vol;            // estimated initial volume
- // real<lower=0> risk[S];             // each patient has local risk of failure / progression
- // real<lower=0> baseline_surv[T];    // baseline hazard for failure model
- // real<lower=0> baseline_progression[T]; // baseline hazard for progression model
 }
 transformed parameters {
   real tumor_vol[N_obs, 1];  // inferred tumor size
@@ -119,7 +85,7 @@ transformed parameters {
                              );
 }
 model {
-  meas_error ~ normal(0, 1);
+  meas_error ~ cauchy(0, 1);
   init_vol ~ normal(0, 1);
   growth_rate ~ normal(0, 1);
   max_size_raw ~ normal(0, 10);
