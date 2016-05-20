@@ -1,6 +1,5 @@
 
 library(dplyr)
-library()
 
 prep_data <- function(data) {
   ## prep data for survival analysis (typical approach)
@@ -67,5 +66,5 @@ prep_data <- function(data) {
     ) %>%
     dplyr::ungroup()
   
-  return(list(per_observation = adata, per_patient = survdata))
+  return(list(per_observation = adata, per_patient = survd))
 }
