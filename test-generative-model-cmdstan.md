@@ -11,11 +11,10 @@ This is a short analysis to test various options for estimating the "generative"
 There are several reasons why I'm looking at using CmdStan:
 
 1.  Rstan is prone to fail/crash at some point, particularly for long-running jobs
+    -   preliminary testing shows that these models will take a while to run
 
--   preliminary testing shows that these models will take a while to run
-
-1.  Better diagnostics & more up to date codebase (e.g. support for stiff odes) with CmdStan
-2.  Having problems running R on dev nodes (more about this later ... )
+2.  Better diagnostics & more up to date codebase (e.g. support for stiff odes) with CmdStan
+3.  Having problems running R on dev nodes (more about this later ... )
 
 Simulated data
 --------------
@@ -200,9 +199,9 @@ testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
     ## Chain 1, Iteration: 8 / 10 [ 80%]  (Sampling)
     ## Chain 1, Iteration: 9 / 10 [ 90%]  (Sampling)
     ## Chain 1, Iteration: 10 / 10 [100%]  (Sampling)# 
-    ## #  Elapsed Time: 0.053329 seconds (Warm-up)
-    ## #                0.046229 seconds (Sampling)
-    ## #                0.099558 seconds (Total)
+    ## #  Elapsed Time: 0.051301 seconds (Warm-up)
+    ## #                0.045945 seconds (Sampling)
+    ## #                0.097246 seconds (Total)
     ## #
 
     ## The following numerical problems occured the indicated number of times after warmup on chain 1
@@ -230,7 +229,7 @@ print(stanfit, 'beta')
     ##         mean se_mean  sd 2.5%  25%  50%  75% 97.5% n_eff Rhat
     ## beta[1] 0.11       0 0.1 -0.1 0.04 0.12 0.19  0.32  1500    1
     ## 
-    ## Samples were drawn using NUTS(diag_e) at Fri May 20 15:38:54 2016.
+    ## Samples were drawn using NUTS(diag_e) at Fri May 20 15:51:02 2016.
     ## For each parameter, n_eff is a crude measure of effective sample size,
     ## and Rhat is the potential scale reduction factor on split chains (at 
     ## convergence, Rhat=1).
@@ -273,8 +272,86 @@ We will first review how this works & then test out the implementation using Cmd
 Here is the stan file :
 
 ``` r
-file.show('generative_model_sim_data.stan')
+file_path <- 'generative_model_sim_data.stan'
+lines <- readLines(file_path, encoding="ASCII")
+for (n in 1:length(lines)) cat(lines[n],'\n')
 ```
+
+    ##  
+    ## functions {  
+    ##   /**  
+    ##    * System State is represented by the current volume (TV) of the tumor  
+    ##    *  
+    ##    * The system has parameters  
+    ##    *  
+    ##    *   theta = (growth, max_size)  
+    ##    *  
+    ##    * where  
+    ##    *  
+    ##    *   growth:   inherent growth rate  
+    ##    *   max_size: max tolerable size for the tumor (constant) 
+    ##    *  
+    ##    * The time derivative is  
+    ##    *  
+    ##    *   d.TV / d.t  =  (TV*growth*(max_size-TV)/max_size) 
+    ##    *  
+    ##    * @param t time at which derivative is evaluated.  
+    ##    * @param TV tumor volume at time of evaluation. 
+    ##    * @param theta parameters for system.  
+    ##    * @param x_r real constants for system (stan defaults; empty).  
+    ##    * @param x_i integer constants for system (stan defaults; empty).  
+    ##    */  
+    ##   real[] tumor_growth(real t, real[] y, real[] theta,  
+    ##                            real[] x_r, int[] x_i) {  
+    ##     real growth_rate; 
+    ##     real max_size; 
+    ##  
+    ##     real dy_dt[1];  
+    ##   
+    ##     growth_rate <- theta[1];  
+    ##     max_size <- theta[2];  
+    ##  
+    ##     dy_dt[1] <- y[1]*growth_rate*((max_size-y[1])/max_size);  
+    ##      
+    ##     return dy_dt;  
+    ##   }  
+    ##  
+    ## } 
+    ## data { 
+    ##   // N obs to simulate 
+    ##   int<lower=0> N_obs; 
+    ##   real<lower=0> obs_t[N_obs]; // timepoint ids 
+    ##   real<lower=0> init_vol; 
+    ##   real<lower=0> growth_rate; 
+    ##   real<lower=0> max_size; 
+    ## } 
+    ## transformed data {  
+    ##   real x_r[0];                 // no real data for ODE system  
+    ##   int x_i[0];                  // no integer data for ODE system  
+    ##   real t0; 
+    ##   t0 <- 0; 
+    ## } 
+    ## model { 
+    ##    
+    ## } 
+    ## generated quantities { 
+    ##   real tumor_vol[N_obs, 1];  // inferred tumor size 
+    ##   real theta[2]; 
+    ##   real init_state[1]; 
+    ##   theta[1] <- growth_rate; 
+    ##   theta[2] <- max_size; 
+    ##   init_state[1] <- init_vol; 
+    ##    
+    ##   tumor_vol <- integrate_ode(tumor_growth 
+    ##                              , init_state 
+    ##                              , t0 
+    ##                              , obs_t 
+    ##                              , theta 
+    ##                              , x_r 
+    ##                              , x_i 
+    ##                              ); 
+    ## } 
+    ## 
 
 ``` r
 ## pick a random patient; pass these parameters to the stan file 
@@ -305,9 +382,9 @@ testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains =
     ## Chain 1, Iteration: 80 / 100 [ 80%]  (Sampling)
     ## Chain 1, Iteration: 90 / 100 [ 90%]  (Sampling)
     ## Chain 1, Iteration: 100 / 100 [100%]  (Sampling)# 
-    ## #  Elapsed Time: 8e-06 seconds (Warm-up)
-    ## #                0.012716 seconds (Sampling)
-    ## #                0.012724 seconds (Total)
+    ## #  Elapsed Time: 6e-06 seconds (Warm-up)
+    ## #                0.012157 seconds (Sampling)
+    ## #                0.012163 seconds (Total)
     ## #
 
 ``` r
@@ -427,7 +504,7 @@ print(testfit)
     ## init_state[1]       1 0.98
     ## lp__               50  NaN
     ## 
-    ## Samples were drawn using (diag_e) at Fri May 20 15:39:12 2016.
+    ## Samples were drawn using (diag_e) at Fri May 20 15:51:20 2016.
     ## For each parameter, n_eff is a crude measure of effective sample size,
     ## and Rhat is the potential scale reduction factor on split chains (at 
     ## convergence, Rhat=1).
@@ -441,8 +518,106 @@ We will try to set this up as a "best case" scenario, where we will tell Stan wh
 Here is the stan file we'll be using to estimate this:
 
 ``` r
-file.show('generative_model_single_obs_more_params.stan')
+file_path <- 'generative_model_single_obs_more_params.stan'
+lines <- readLines(file_path, encoding="ASCII")
+for (n in 1:length(lines)) cat(lines[n],'\n')
 ```
+
+    ##  
+    ## /*  notes about input data &/or the model 
+    ##  
+    ##  N_obs        = int; number of measurement occasions (length of data) 
+    ##  obs_t        = int; timepoint (id) for each measurement occasion 
+    ##  obs_size     = real; tumor measurement at time t (use 0 when no measurement) 
+    ##  
+    ## */ 
+    ## // Jacqueline Buros Novik <jackinovik@gmail.com> 
+    ##  
+    ## functions {  
+    ##   /**  
+    ##    * System State is represented by the current volume (TV) of the tumor  
+    ##    *  
+    ##    * The system has parameters  
+    ##    *  
+    ##    *   theta = (growth, max_size)  
+    ##    *  
+    ##    * where  
+    ##    *  
+    ##    *   growth:   inherent growth rate  
+    ##    *   max_size: max tolerable size for the tumor (constant) 
+    ##    *  
+    ##    * The time derivative is  
+    ##    *  
+    ##    *   d.TV / d.t  =  (TV*growth*(max_size-TV)/max_size) 
+    ##    *  
+    ##    * @param t time at which derivative is evaluated.  
+    ##    * @param TV tumor volume at time of evaluation. 
+    ##    * @param theta parameters for system.  
+    ##    * @param x_r real constants for system (stan defaults; empty).  
+    ##    * @param x_i integer constants for system (stan defaults; empty).  
+    ##    */  
+    ##   real[] tumor_growth(real t, real[] TV, real[] theta,  
+    ##                            real[] x_r, int[] x_i) {  
+    ##     real growth_rate; 
+    ##     real max_size; 
+    ##  
+    ##     real dTV_dt[1];  
+    ##   
+    ##     growth_rate <- theta[1];  
+    ##     max_size <- theta[2];  
+    ##  
+    ##     dTV_dt[1] <- (TV[1]*growth_rate*(max_size-TV[1]));  
+    ##      
+    ##     return dTV_dt;  
+    ##   }  
+    ##  
+    ## } 
+    ## data { 
+    ##   int<lower=0> N_obs; 
+    ##   real<lower=0> obs_t[N_obs]; // timepoint ids 
+    ##   real<lower=0> obs_size[N_obs]; 
+    ##   real<lower=0> max_size; 
+    ## } 
+    ## transformed data {  
+    ##   real x_r[0];                 // no real data for ODE system  
+    ##   int x_i[0];                  // no integer data for ODE system  
+    ##   int t0; 
+    ##   t0 <- 0; 
+    ## } 
+    ## parameters { 
+    ## //  real<lower=0> max_size_raw;        // max tolerable size for each tumor 
+    ##   real<lower=0> growth_rate;         // rate of growth 
+    ##   real<lower=0> meas_error;          // global measurement error of diameters 
+    ##   real<lower=0> init_vol;            // estimated initial volume 
+    ## } 
+    ## transformed parameters { 
+    ##   real tumor_vol[N_obs, 1];  // inferred tumor size 
+    ##   real theta[2]; 
+    ##   real init_state[1]; 
+    ## //  real max_size; 
+    ## //  max_size <- 4000 + max_size_raw; 
+    ##   theta[1] <- growth_rate; 
+    ##   theta[2] <- max_size; 
+    ##   init_state[1] <- init_vol; 
+    ##    
+    ##    
+    ##   tumor_vol <- integrate_ode(tumor_growth 
+    ##                              , init_state 
+    ##                              , t0 
+    ##                              , obs_t 
+    ##                              , theta 
+    ##                              , x_r 
+    ##                              , x_i 
+    ##                              ); 
+    ## } 
+    ## model { 
+    ##   meas_error ~ cauchy(0, 1); 
+    ##   init_vol ~ normal(0, 1); 
+    ##   growth_rate ~ normal(0, 1); 
+    ##   //max_size_raw ~ normal(0, 10); 
+    ##   for (n in 1:N_obs) 
+    ##     obs_size[n] ~ normal(tumor_vol[n,1], meas_error); 
+    ## }
 
 #### invoking CmdStan
 
@@ -454,4 +629,38 @@ The process for invoking this from CmdStan involves a few steps :
 
 Written in R code, this looks like :
 
+``` r
+## prep data for stan
+growthdata <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$tumor_size
+  , max_size = 4000
+)
+## call using cmdstan instead of rstan. more reliable for longer-running models
+stan_home <- '/usr/local/Cellar/cmdstan/2.9.0'
+modelpath <- file.path(getwd(),'generative_model_single_obs_more_params.stan')
+modelpath <- gsub(modelpath, pattern = "(.*)\\.stan", replacement = '\\1')
+modelname <- gsub(modelpath, pattern = ".*\\/([^\\/.]+)$", replacement = "\\1")
+datafile <- file.path(getwd(),paste0(modelname,'.data.R'))
+## write data to disk
+with(growthdata, stan_rdump(names(growthdata), file = datafile))
+## translate stan -> c++; compile to executable
+system(paste0('(cd ',stan_home,' && make ',modelpath,')'))
+## test on 10 iterations
+
+system(paste0('./',modelname,' diagnose data file=',datafile))
+system(paste0('./',modelname,' sample num_samples=5 num_warmup=5 random seed=12345 data file=',datafile))
+```
+
 #### invoking rstan
+
+``` r
+growthdata <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$tumor_size
+  , max_size = 4000
+)
+testfit <- stan('generative_model_single_obs_more_params.stan', data = growthdata, iter=10, chains = 1)
+```
