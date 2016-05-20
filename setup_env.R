@@ -6,4 +6,5 @@ install.packages('rstan')
 install.packages('ggplot2')
 install.packages('dplyr')
 install.packages('purrr')
-
+install.packages('arm')
+install.packages('survival')
