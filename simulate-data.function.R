@@ -53,9 +53,10 @@ simulate_data = function(
   , size_noise_fun = create_rnorm(mean = 0, sd = 1)
   , observed_size_fun = function(row) {(vol2rad(row$tumor_size)*2 + row$size_noise)} ## diameter is observed, whereas volume determines hazard
   , hazard_noise_fun = create_rcauchy(location = 0, scale = 2, half = TRUE)
-  , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = rnorm(n, mean = 3, sd = 1)) }
+  , hazard_coefs_fun = function(n) { list(intercept = rnorm(n, mean = 0, sd = 1), beta_tumor_size = create_rcauchy(0, 2, half = TRUE)(n)) }
   , hazard_fun = function(row) { row$intercept + row$tumor_size*row$beta_tumor_size + row$hazard_noise }
   , censor_time_fun = create_scalar(value = max_t)   ## create_rt(df = 10, ncp = 20, half = TRUE)
+  , ode_model = growth_model
   , failure_threshold = 3 ## >= this many events == FAILURE
   , progression_threshold = 2 ## >= this many events == PROGRESSION (disease progression)
   ) {
@@ -66,6 +67,7 @@ simulate_data = function(
       mutate(growth_rate = growth_rate_fun(n = n)
              , init_size = init_size_fun(n = n)
              , censor_time = censor_time_fun(n = n)
+             , max_size = max_size
              ) %>%
     bind_cols(hazard_coefs_fun(n = n))
 
@@ -78,23 +80,27 @@ simulate_data = function(
                   , growth_rate_noise = growth_rate_noise_fun(n = n())
                   ) %>%
     inner_join(simd, by = 'patid')
-
+  
+  ## create function that will take a single dataframe & map ode onto it 
+  apply_ode_data_frame <- function(df) {
+    init_state <- c(tumor_size = min(df$init_size, na.rm = T))
+    params <- df %>% 
+      dplyr::select(-init_size) %>% 
+      keep(~ is.numeric(.) & 
+             n_distinct(.)==1) %>% 
+      map(unique)
+    times <- df$t
+    res <- ode(init_state, times, ode_model, params) %>% 
+      as.data.frame() %>% 
+      dplyr::select(-time) 
+    return(df %>% bind_cols(res))
+  }
   simdt <- 
     simdt %>% 
-    arrange(patid, t) %>%
-    group_by(patid) %>%
-    arrange(t) %>%
-    dplyr::mutate(
-      growth = ifelse(t == 0, init_size, ifelse(growth_rate + growth_rate_noise < 0, 0, growth_rate + growth_rate_noise))
-      , tumor_size = purrr::accumulate(growth
-                                , function(base, rate) {
-                                    dTdt <- (base*rate*(max_size-base)/max_size)
-                                    #print(paste0('base: ',round(base),'; rate: ',round(rate),'; dTdt'))
-                                    base + dTdt
-                                  }
-                                )
-      ) %>%
-    ungroup() %>%
+    group_by(patid) %>% 
+    split(.$patid) %>%
+    map(apply_ode_data_frame) %>%
+    bind_rows() %>%
     dplyr::filter(t > 0) %>%
     mutate(observed = ifelse(t >= censor_time, 0, 1))
   
@@ -236,4 +242,13 @@ create_rbeta <- function(shape1, shape2) {
 ## v = (4/3) * pi * r^3
 vol2rad <- function(volumes) {
   (volumes * (3/4) / pi)^(1/3)
+}
+
+## ode used to calculate tumor size in any given time
+growth_model <- function(t, state, params) {
+  with(as.list(c(state, params)), {
+    growth_tumor <- growth_rate * tumor_size * (1 - tumor_size/max_size)
+    dTumor <- growth_tumor
+    return(list(c(dTumor)))
+  })
 }
