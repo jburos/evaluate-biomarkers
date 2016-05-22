@@ -46,7 +46,7 @@ prep_data <- function(data) {
   
   ## analysis data - survdata combined with original data
   adata <- data %>%
-    dplyr::inner_join(survd 
+    dplyr::inner_join(survd %>% dplyr::select(-starts_with('first'),-ends_with('status'))
                , by = "patid") %>%
     dplyr::filter(observed == 1) %>%
     dplyr::mutate(overall_mean_size = mean(observed_size, na.rm = T)
