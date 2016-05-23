@@ -54,9 +54,9 @@ res <- prep_data(d)
     ## 
     ##   failure_status failure_or_progression_status     n percent
     ##            (dbl)                         (dbl) (int)   (chr)
-    ## 1              0                             0    13     13%
-    ## 2              0                             1    46     46%
-    ## 3              1                             1    41     41%
+    ## 1              0                             0    33     33%
+    ## 2              0                             1    36     36%
+    ## 3              1                             1    31     31%
 
 ``` r
 adata <- res$per_observation
@@ -93,11 +93,11 @@ print(survfit1)
     ##     data = survd)
     ## 
     ## 
-    ##                     coef exp(coef) se(coef)    z    p
-    ## rescaled_init_size 0.192     1.211    0.158 1.22 0.22
+    ##                       coef exp(coef) se(coef)     z    p
+    ## rescaled_init_size -0.0597    0.9421   0.1876 -0.32 0.75
     ## 
-    ## Likelihood ratio test=1.49  on 1 df, p=0.222
-    ## n= 100, number of events= 41
+    ## Likelihood ratio test=0.1  on 1 df, p=0.75
+    ## n= 100, number of events= 31
 
 And, including change in tumor size :
 
@@ -114,12 +114,12 @@ print(survfit)
     ##     rescaled_growth_rate, data = survd)
     ## 
     ## 
-    ##                        coef exp(coef) se(coef)    z       p
-    ## rescaled_init_size    0.798     2.220    0.189 4.21 2.5e-05
-    ## rescaled_growth_rate  2.472    11.842    0.308 8.01 1.1e-15
+    ##                       coef exp(coef) se(coef)    z       p
+    ## rescaled_init_size   0.440     1.553    0.204 2.16   0.031
+    ## rescaled_growth_rate 1.487     4.424    0.241 6.16 7.3e-10
     ## 
-    ## Likelihood ratio test=115  on 2 df, p=0
-    ## n= 100, number of events= 41
+    ## Likelihood ratio test=43.4  on 2 df, p=3.83e-10
+    ## n= 100, number of events= 31
 
 #### with progression/failure as the outcome
 
@@ -138,11 +138,11 @@ print(survfit)
     ##     rescaled_init_size, data = survd)
     ## 
     ## 
-    ##                      coef exp(coef) se(coef)    z    p
-    ## rescaled_init_size 0.0786    1.0818   0.1110 0.71 0.48
+    ##                      coef exp(coef) se(coef)     z   p
+    ## rescaled_init_size -0.208     0.812    0.128 -1.63 0.1
     ## 
-    ## Likelihood ratio test=0.5  on 1 df, p=0.478
-    ## n= 100, number of events= 87
+    ## Likelihood ratio test=2.68  on 1 df, p=0.102
+    ## n= 100, number of events= 67
 
 And, including change in tumor size :
 
@@ -159,12 +159,12 @@ print(survfit)
     ##     rescaled_init_size + rescaled_growth_rate, data = survd)
     ## 
     ## 
-    ##                       coef exp(coef) se(coef)    z       p
-    ## rescaled_init_size   0.116     1.123    0.112 1.04     0.3
-    ## rescaled_growth_rate 0.734     2.084    0.124 5.90 3.6e-09
+    ##                        coef exp(coef) se(coef)    z       p
+    ## rescaled_init_size   0.0462    1.0473   0.1347 0.34    0.73
+    ## rescaled_growth_rate 0.8077    2.2428   0.1392 5.80 6.5e-09
     ## 
-    ## Likelihood ratio test=29.1  on 2 df, p=4.69e-07
-    ## n= 100, number of events= 87
+    ## Likelihood ratio test=29.7  on 2 df, p=3.53e-07
+    ## n= 100, number of events= 67
 
 Stan code for basic survival model
 ----------------------------------
@@ -183,7 +183,8 @@ standata <- list(
   , covars = adata %>% dplyr::select(rescaled_init_size)
 )
 
-testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
+testfit <- stan(file.path(stanfile_dir,'long_surv.stan')
+                , data = standata, chains = 1, iter = 10)
 ```
 
     ## 
@@ -199,15 +200,14 @@ testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
     ## Chain 1, Iteration: 8 / 10 [ 80%]  (Sampling)
     ## Chain 1, Iteration: 9 / 10 [ 90%]  (Sampling)
     ## Chain 1, Iteration: 10 / 10 [100%]  (Sampling)# 
-    ## #  Elapsed Time: 0.051301 seconds (Warm-up)
-    ## #                0.045945 seconds (Sampling)
-    ## #                0.097246 seconds (Total)
+    ## #  Elapsed Time: 0.049914 seconds (Warm-up)
+    ## #                0.033157 seconds (Sampling)
+    ## #                0.083071 seconds (Total)
     ## #
 
     ## The following numerical problems occured the indicated number of times after warmup on chain 1
 
     ##                                                                                       count
-    ## validate transformed params: hazard[5] is nan, but must be greater than or equal to 0     2
     ## validate transformed params: hazard[1] is nan, but must be greater than or equal to 0     1
 
     ## When a numerical problem occurs, the Metropolis proposal gets rejected.
@@ -217,7 +217,8 @@ testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
     ## Thus, if the number in the 'count' column is small, do not ask about this message on stan-users.
 
 ``` r
-stanfit <- stan('long_surv.stan', data = standata, chains = 3, iter = 1000)
+stanfit <- stan(file.path(stanfile_dir,'long_surv.stan')
+                , data = standata, chains = 3, iter = 1000)
 
 print(stanfit, 'beta')
 ```
@@ -226,10 +227,10 @@ print(stanfit, 'beta')
     ## 3 chains, each with iter=1000; warmup=500; thin=1; 
     ## post-warmup draws per chain=500, total post-warmup draws=1500.
     ## 
-    ##         mean se_mean  sd 2.5%  25%  50%  75% 97.5% n_eff Rhat
-    ## beta[1] 0.11       0 0.1 -0.1 0.04 0.12 0.19  0.32  1500    1
+    ##          mean se_mean   sd 2.5%   25%   50%  75% 97.5% n_eff Rhat
+    ## beta[1] -0.06       0 0.12 -0.3 -0.14 -0.06 0.01  0.15  1500    1
     ## 
-    ## Samples were drawn using NUTS(diag_e) at Fri May 20 15:51:02 2016.
+    ## Samples were drawn using NUTS(diag_e) at Mon May 23 14:52:45 2016.
     ## For each parameter, n_eff is a crude measure of effective sample size,
     ## and Rhat is the potential scale reduction factor on split chains (at 
     ## convergence, Rhat=1).
@@ -247,11 +248,11 @@ print(survfit1)
     ##     data = survd)
     ## 
     ## 
-    ##                     coef exp(coef) se(coef)    z    p
-    ## rescaled_init_size 0.192     1.211    0.158 1.22 0.22
+    ##                       coef exp(coef) se(coef)     z    p
+    ## rescaled_init_size -0.0597    0.9421   0.1876 -0.32 0.75
     ## 
-    ## Likelihood ratio test=1.49  on 1 df, p=0.222
-    ## n= 100, number of events= 41
+    ## Likelihood ratio test=0.1  on 1 df, p=0.75
+    ## n= 100, number of events= 31
 
 Semi-competing risks model
 --------------------------
@@ -272,7 +273,7 @@ We will first review how this works & then test out the implementation using Cmd
 Here is the stan file :
 
 ``` r
-file_path <- 'generative_model_sim_data.stan'
+file_path <- file.path(stanfile_dir,'generative_model_sim_data.stan')
 lines <- readLines(file_path, encoding="ASCII")
 for (n in 1:length(lines)) cat(lines[n],'\n')
 ```
@@ -336,6 +337,7 @@ for (n in 1:length(lines)) cat(lines[n],'\n')
     ## } 
     ## generated quantities { 
     ##   real tumor_vol[N_obs, 1];  // inferred tumor size 
+    ##   real tumor_diam[N_obs, 1]; 
     ##   real theta[2]; 
     ##   real init_state[1]; 
     ##   theta[1] <- growth_rate; 
@@ -350,6 +352,8 @@ for (n in 1:length(lines)) cat(lines[n],'\n')
     ##                              , x_r 
     ##                              , x_i 
     ##                              ); 
+    ##   for (n in 1:N_obs) 
+    ##     tumor_diam[n,1] <- 2*cbrt(tumor_vol[n,1] * (0.75) / pi()); 
     ## } 
     ## 
 
@@ -364,7 +368,9 @@ sample_params <- list(
   , growth_rate = unique(sample_data$growth_rate)
   , max_size = 4000
 )
-testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains = 1, iter = 100, algorithm = 'Fixed_param')
+testfit <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
+                , data = sample_params, chains = 1, iter = 100
+                , algorithm = 'Fixed_param')
 ```
 
     ## 
@@ -382,9 +388,9 @@ testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains =
     ## Chain 1, Iteration: 80 / 100 [ 80%]  (Sampling)
     ## Chain 1, Iteration: 90 / 100 [ 90%]  (Sampling)
     ## Chain 1, Iteration: 100 / 100 [100%]  (Sampling)# 
-    ## #  Elapsed Time: 6e-06 seconds (Warm-up)
-    ## #                0.012157 seconds (Sampling)
-    ## #                0.012163 seconds (Total)
+    ## #  Elapsed Time: 5e-06 seconds (Warm-up)
+    ## #                0.007188 seconds (Sampling)
+    ## #                0.007193 seconds (Total)
     ## #
 
 ``` r
@@ -395,116 +401,214 @@ print(testfit)
     ## 1 chains, each with iter=100; warmup=50; thin=1; 
     ## post-warmup draws per chain=50, total post-warmup draws=50.
     ## 
-    ##                    mean se_mean sd    2.5%     25%     50%     75%   97.5%
-    ## tumor_vol[1,1]     1.05       0  0    1.05    1.05    1.05    1.05    1.05
-    ## tumor_vol[2,1]     1.44       0  0    1.44    1.44    1.44    1.44    1.44
-    ## tumor_vol[3,1]     1.97       0  0    1.97    1.97    1.97    1.97    1.97
-    ## tumor_vol[4,1]     2.70       0  0    2.70    2.70    2.70    2.70    2.70
-    ## tumor_vol[5,1]     3.69       0  0    3.69    3.69    3.69    3.69    3.69
-    ## tumor_vol[6,1]     5.06       0  0    5.06    5.06    5.06    5.06    5.06
-    ## tumor_vol[7,1]     6.93       0  0    6.93    6.93    6.93    6.93    6.93
-    ## tumor_vol[8,1]     9.49       0  0    9.49    9.49    9.49    9.49    9.49
-    ## tumor_vol[9,1]    12.99       0  0   12.99   12.99   12.99   12.99   12.99
-    ## tumor_vol[10,1]   17.77       0  0   17.77   17.77   17.77   17.77   17.77
-    ## tumor_vol[11,1]   24.31       0  0   24.31   24.31   24.31   24.31   24.31
-    ## tumor_vol[12,1]   33.23       0  0   33.23   33.23   33.23   33.23   33.23
-    ## tumor_vol[13,1]   45.39       0  0   45.39   45.39   45.39   45.39   45.39
-    ## tumor_vol[14,1]   61.92       0  0   61.92   61.92   61.92   61.92   61.92
-    ## tumor_vol[15,1]   84.36       0  0   84.36   84.36   84.36   84.36   84.36
-    ## tumor_vol[16,1]  114.68       0  0  114.68  114.68  114.68  114.68  114.68
-    ## tumor_vol[17,1]  155.48       0  0  155.48  155.48  155.48  155.48  155.48
-    ## tumor_vol[18,1]  210.00       0  0  210.00  210.00  210.00  210.00  210.00
-    ## tumor_vol[19,1]  282.24       0  0  282.24  282.24  282.24  282.24  282.24
-    ## tumor_vol[20,1]  376.85       0  0  376.85  376.85  376.85  376.85  376.85
-    ## tumor_vol[21,1]  498.93       0  0  498.93  498.93  498.93  498.93  498.93
-    ## tumor_vol[22,1]  653.42       0  0  653.42  653.42  653.42  653.42  653.42
-    ## tumor_vol[23,1]  844.21       0  0  844.21  844.21  844.21  844.21  844.21
-    ## tumor_vol[24,1] 1072.84       0  0 1072.84 1072.84 1072.84 1072.84 1072.84
-    ## tumor_vol[25,1] 1337.17       0  0 1337.17 1337.17 1337.17 1337.17 1337.17
-    ## tumor_vol[26,1] 1630.34       0  0 1630.34 1630.34 1630.34 1630.34 1630.34
-    ## tumor_vol[27,1] 1940.94       0  0 1940.94 1940.94 1940.94 1940.94 1940.94
-    ## tumor_vol[28,1] 2254.43       0  0 2254.43 2254.43 2254.43 2254.43 2254.43
-    ## tumor_vol[29,1] 2555.69       0  0 2555.69 2555.69 2555.69 2555.69 2555.69
-    ## tumor_vol[30,1] 2831.90       0  0 2831.90 2831.90 2831.90 2831.90 2831.90
-    ## tumor_vol[31,1] 3074.42       0  0 3074.42 3074.42 3074.42 3074.42 3074.42
-    ## tumor_vol[32,1] 3279.40       0  0 3279.40 3279.40 3279.40 3279.40 3279.40
-    ## tumor_vol[33,1] 3447.15       0  0 3447.15 3447.15 3447.15 3447.15 3447.15
-    ## tumor_vol[34,1] 3580.84       0  0 3580.84 3580.84 3580.84 3580.84 3580.84
-    ## tumor_vol[35,1] 3685.15       0  0 3685.15 3685.15 3685.15 3685.15 3685.15
-    ## tumor_vol[36,1] 3765.21       0  0 3765.21 3765.21 3765.21 3765.21 3765.21
-    ## tumor_vol[37,1] 3825.87       0  0 3825.87 3825.87 3825.87 3825.87 3825.87
-    ## tumor_vol[38,1] 3871.40       0  0 3871.40 3871.40 3871.40 3871.40 3871.40
-    ## tumor_vol[39,1] 3905.31       0  0 3905.31 3905.31 3905.31 3905.31 3905.31
-    ## tumor_vol[40,1] 3930.44       0  0 3930.44 3930.44 3930.44 3930.44 3930.44
-    ## tumor_vol[41,1] 3948.99       0  0 3948.99 3948.99 3948.99 3948.99 3948.99
-    ## tumor_vol[42,1] 3962.64       0  0 3962.64 3962.64 3962.64 3962.64 3962.64
-    ## tumor_vol[43,1] 3972.66       0  0 3972.66 3972.66 3972.66 3972.66 3972.66
-    ## tumor_vol[44,1] 3980.01       0  0 3980.01 3980.01 3980.01 3980.01 3980.01
-    ## tumor_vol[45,1] 3985.39       0  0 3985.39 3985.39 3985.39 3985.39 3985.39
-    ## tumor_vol[46,1] 3989.33       0  0 3989.33 3989.33 3989.33 3989.33 3989.33
-    ## tumor_vol[47,1] 3992.20       0  0 3992.20 3992.20 3992.20 3992.20 3992.20
-    ## tumor_vol[48,1] 3994.31       0  0 3994.31 3994.31 3994.31 3994.31 3994.31
-    ## tumor_vol[49,1] 3995.84       0  0 3995.84 3995.84 3995.84 3995.84 3995.84
-    ## theta[1]           0.31       0  0    0.31    0.31    0.31    0.31    0.31
-    ## theta[2]        4000.00       0  0 4000.00 4000.00 4000.00 4000.00 4000.00
-    ## init_state[1]      0.77       0  0    0.77    0.77    0.77    0.77    0.77
-    ## lp__               0.00       0  0    0.00    0.00    0.00    0.00    0.00
-    ##                 n_eff Rhat
-    ## tumor_vol[1,1]      1 0.98
-    ## tumor_vol[2,1]      1 0.98
-    ## tumor_vol[3,1]      1 0.98
-    ## tumor_vol[4,1]      1  NaN
-    ## tumor_vol[5,1]     50  NaN
-    ## tumor_vol[6,1]      1 0.98
-    ## tumor_vol[7,1]      1 0.98
-    ## tumor_vol[8,1]      1 0.98
-    ## tumor_vol[9,1]      1 0.98
-    ## tumor_vol[10,1]     1 0.98
-    ## tumor_vol[11,1]     1 0.98
-    ## tumor_vol[12,1]     1 0.98
-    ## tumor_vol[13,1]    50 0.98
-    ## tumor_vol[14,1]     1 0.98
-    ## tumor_vol[15,1]     1 0.98
-    ## tumor_vol[16,1]     1 0.98
-    ## tumor_vol[17,1]     1 0.98
-    ## tumor_vol[18,1]    50  NaN
-    ## tumor_vol[19,1]     1 0.98
-    ## tumor_vol[20,1]     1 0.98
-    ## tumor_vol[21,1]     1 0.98
-    ## tumor_vol[22,1]    50  NaN
-    ## tumor_vol[23,1]     1 0.98
-    ## tumor_vol[24,1]    50  NaN
-    ## tumor_vol[25,1]     1 0.98
-    ## tumor_vol[26,1]     1 0.98
-    ## tumor_vol[27,1]     1 0.98
-    ## tumor_vol[28,1]     1 0.98
-    ## tumor_vol[29,1]     1 0.98
-    ## tumor_vol[30,1]     1 0.98
-    ## tumor_vol[31,1]     1 0.98
-    ## tumor_vol[32,1]     1 0.98
-    ## tumor_vol[33,1]     1 0.98
-    ## tumor_vol[34,1]     1  NaN
-    ## tumor_vol[35,1]     1 0.98
-    ## tumor_vol[36,1]     1  NaN
-    ## tumor_vol[37,1]     1 0.98
-    ## tumor_vol[38,1]     1 0.98
-    ## tumor_vol[39,1]     1 0.98
-    ## tumor_vol[40,1]     1 0.98
-    ## tumor_vol[41,1]     1 0.98
-    ## tumor_vol[42,1]    50 0.98
-    ## tumor_vol[43,1]     1 0.98
-    ## tumor_vol[44,1]     1 0.98
-    ## tumor_vol[45,1]     1 0.98
-    ## tumor_vol[46,1]     1 0.98
-    ## tumor_vol[47,1]     1 0.98
-    ## tumor_vol[48,1]    50  NaN
-    ## tumor_vol[49,1]     1 0.98
-    ## theta[1]            1 0.98
-    ## theta[2]           50  NaN
-    ## init_state[1]       1 0.98
-    ## lp__               50  NaN
+    ##                     mean se_mean sd    2.5%     25%     50%     75%
+    ## tumor_vol[1,1]      0.48       0  0    0.48    0.48    0.48    0.48
+    ## tumor_vol[2,1]      0.70       0  0    0.70    0.70    0.70    0.70
+    ## tumor_vol[3,1]      1.02       0  0    1.02    1.02    1.02    1.02
+    ## tumor_vol[4,1]      1.49       0  0    1.49    1.49    1.49    1.49
+    ## tumor_vol[5,1]      2.17       0  0    2.17    2.17    2.17    2.17
+    ## tumor_vol[6,1]      3.16       0  0    3.16    3.16    3.16    3.16
+    ## tumor_vol[7,1]      4.61       0  0    4.61    4.61    4.61    4.61
+    ## tumor_vol[8,1]      6.71       0  0    6.71    6.71    6.71    6.71
+    ## tumor_vol[9,1]      9.78       0  0    9.78    9.78    9.78    9.78
+    ## tumor_vol[10,1]    14.24       0  0   14.24   14.24   14.24   14.24
+    ## tumor_vol[11,1]    20.72       0  0   20.72   20.72   20.72   20.72
+    ## tumor_vol[12,1]    30.12       0  0   30.12   30.12   30.12   30.12
+    ## tumor_vol[13,1]    43.76       0  0   43.76   43.76   43.76   43.76
+    ## tumor_vol[14,1]    63.47       0  0   63.47   63.47   63.47   63.47
+    ## tumor_vol[15,1]    91.84       0  0   91.84   91.84   91.84   91.84
+    ## tumor_vol[16,1]   132.48       0  0  132.48  132.48  132.48  132.48
+    ## tumor_vol[17,1]   190.21       0  0  190.21  190.21  190.21  190.21
+    ## tumor_vol[18,1]   271.35       0  0  271.35  271.35  271.35  271.35
+    ## tumor_vol[19,1]   383.61       0  0  383.61  383.61  383.61  383.61
+    ## tumor_vol[20,1]   535.65       0  0  535.65  535.65  535.65  535.65
+    ## tumor_vol[21,1]   735.68       0  0  735.68  735.68  735.68  735.68
+    ## tumor_vol[22,1]   989.08       0  0  989.08  989.08  989.08  989.08
+    ## tumor_vol[23,1]  1295.14       0  0 1295.14 1295.14 1295.14 1295.14
+    ## tumor_vol[24,1]  1644.19       0  0 1644.19 1644.19 1644.19 1644.19
+    ## tumor_vol[25,1]  2017.15       0  0 2017.15 2017.15 2017.15 2017.15
+    ## tumor_vol[26,1]  2388.92       0  0 2388.92 2388.92 2388.92 2388.92
+    ## tumor_vol[27,1]  2734.72       0  0 2734.72 2734.72 2734.72 2734.72
+    ## tumor_vol[28,1]  3036.23       0  0 3036.23 3036.23 3036.23 3036.23
+    ## tumor_vol[29,1]  3284.69       0  0 3284.69 3284.69 3284.69 3284.69
+    ## tumor_vol[30,1]  3480.07       0  0 3480.07 3480.07 3480.07 3480.07
+    ## tumor_vol[31,1]  3628.12       0  0 3628.12 3628.12 3628.12 3628.12
+    ## tumor_vol[32,1]  3737.20       0  0 3737.20 3737.20 3737.20 3737.20
+    ## tumor_vol[33,1]  3815.91       0  0 3815.91 3815.91 3815.91 3815.91
+    ## tumor_vol[34,1]  3871.85       0  0 3871.85 3871.85 3871.85 3871.85
+    ## tumor_vol[35,1]  3911.19       0  0 3911.19 3911.19 3911.19 3911.19
+    ## tumor_vol[36,1]  3938.64       0  0 3938.64 3938.64 3938.64 3938.64
+    ## tumor_vol[37,1]  3957.70       0  0 3957.70 3957.70 3957.70 3957.70
+    ## tumor_vol[38,1]  3970.88       0  0 3970.88 3970.88 3970.88 3970.88
+    ## tumor_vol[39,1]  3979.98       0  0 3979.98 3979.98 3979.98 3979.98
+    ## tumor_vol[40,1]  3986.24       0  0 3986.24 3986.24 3986.24 3986.24
+    ## tumor_vol[41,1]  3990.55       0  0 3990.55 3990.55 3990.55 3990.55
+    ## tumor_vol[42,1]  3993.51       0  0 3993.51 3993.51 3993.51 3993.51
+    ## tumor_vol[43,1]  3995.55       0  0 3995.55 3995.55 3995.55 3995.55
+    ## tumor_vol[44,1]  3996.94       0  0 3996.94 3996.94 3996.94 3996.94
+    ## tumor_vol[45,1]  3997.90       0  0 3997.90 3997.90 3997.90 3997.90
+    ## tumor_vol[46,1]  3998.56       0  0 3998.56 3998.56 3998.56 3998.56
+    ## tumor_vol[47,1]  3999.01       0  0 3999.01 3999.01 3999.01 3999.01
+    ## tumor_vol[48,1]  3999.32       0  0 3999.32 3999.32 3999.32 3999.32
+    ## tumor_vol[49,1]  3999.53       0  0 3999.53 3999.53 3999.53 3999.53
+    ## tumor_diam[1,1]     0.97       0  0    0.97    0.97    0.97    0.97
+    ## tumor_diam[2,1]     1.10       0  0    1.10    1.10    1.10    1.10
+    ## tumor_diam[3,1]     1.25       0  0    1.25    1.25    1.25    1.25
+    ## tumor_diam[4,1]     1.42       0  0    1.42    1.42    1.42    1.42
+    ## tumor_diam[5,1]     1.61       0  0    1.61    1.61    1.61    1.61
+    ## tumor_diam[6,1]     1.82       0  0    1.82    1.82    1.82    1.82
+    ## tumor_diam[7,1]     2.06       0  0    2.06    2.06    2.06    2.06
+    ## tumor_diam[8,1]     2.34       0  0    2.34    2.34    2.34    2.34
+    ## tumor_diam[9,1]     2.65       0  0    2.65    2.65    2.65    2.65
+    ## tumor_diam[10,1]    3.01       0  0    3.01    3.01    3.01    3.01
+    ## tumor_diam[11,1]    3.41       0  0    3.41    3.41    3.41    3.41
+    ## tumor_diam[12,1]    3.86       0  0    3.86    3.86    3.86    3.86
+    ## tumor_diam[13,1]    4.37       0  0    4.37    4.37    4.37    4.37
+    ## tumor_diam[14,1]    4.95       0  0    4.95    4.95    4.95    4.95
+    ## tumor_diam[15,1]    5.60       0  0    5.60    5.60    5.60    5.60
+    ## tumor_diam[16,1]    6.32       0  0    6.32    6.32    6.32    6.32
+    ## tumor_diam[17,1]    7.14       0  0    7.14    7.14    7.14    7.14
+    ## tumor_diam[18,1]    8.03       0  0    8.03    8.03    8.03    8.03
+    ## tumor_diam[19,1]    9.01       0  0    9.01    9.01    9.01    9.01
+    ## tumor_diam[20,1]   10.08       0  0   10.08   10.08   10.08   10.08
+    ## tumor_diam[21,1]   11.20       0  0   11.20   11.20   11.20   11.20
+    ## tumor_diam[22,1]   12.36       0  0   12.36   12.36   12.36   12.36
+    ## tumor_diam[23,1]   13.52       0  0   13.52   13.52   13.52   13.52
+    ## tumor_diam[24,1]   14.64       0  0   14.64   14.64   14.64   14.64
+    ## tumor_diam[25,1]   15.68       0  0   15.68   15.68   15.68   15.68
+    ## tumor_diam[26,1]   16.59       0  0   16.59   16.59   16.59   16.59
+    ## tumor_diam[27,1]   17.35       0  0   17.35   17.35   17.35   17.35
+    ## tumor_diam[28,1]   17.97       0  0   17.97   17.97   17.97   17.97
+    ## tumor_diam[29,1]   18.44       0  0   18.44   18.44   18.44   18.44
+    ## tumor_diam[30,1]   18.80       0  0   18.80   18.80   18.80   18.80
+    ## tumor_diam[31,1]   19.06       0  0   19.06   19.06   19.06   19.06
+    ## tumor_diam[32,1]   19.25       0  0   19.25   19.25   19.25   19.25
+    ## tumor_diam[33,1]   19.39       0  0   19.39   19.39   19.39   19.39
+    ## tumor_diam[34,1]   19.48       0  0   19.48   19.48   19.48   19.48
+    ## tumor_diam[35,1]   19.55       0  0   19.55   19.55   19.55   19.55
+    ## tumor_diam[36,1]   19.59       0  0   19.59   19.59   19.59   19.59
+    ## tumor_diam[37,1]   19.63       0  0   19.63   19.63   19.63   19.63
+    ## tumor_diam[38,1]   19.65       0  0   19.65   19.65   19.65   19.65
+    ## tumor_diam[39,1]   19.66       0  0   19.66   19.66   19.66   19.66
+    ## tumor_diam[40,1]   19.67       0  0   19.67   19.67   19.67   19.67
+    ## tumor_diam[41,1]   19.68       0  0   19.68   19.68   19.68   19.68
+    ## tumor_diam[42,1]   19.68       0  0   19.68   19.68   19.68   19.68
+    ## tumor_diam[43,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## tumor_diam[44,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## tumor_diam[45,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## tumor_diam[46,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## tumor_diam[47,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## tumor_diam[48,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## tumor_diam[49,1]   19.69       0  0   19.69   19.69   19.69   19.69
+    ## theta[1]            0.38       0  0    0.38    0.38    0.38    0.38
+    ## theta[2]         4000.00       0  0 4000.00 4000.00 4000.00 4000.00
+    ## init_state[1]       0.33       0  0    0.33    0.33    0.33    0.33
+    ## lp__                0.00       0  0    0.00    0.00    0.00    0.00
+    ##                    97.5% n_eff Rhat
+    ## tumor_vol[1,1]      0.48    50  NaN
+    ## tumor_vol[2,1]      0.70    50 0.98
+    ## tumor_vol[3,1]      1.02     1 0.98
+    ## tumor_vol[4,1]      1.49     1 0.98
+    ## tumor_vol[5,1]      2.17     1  NaN
+    ## tumor_vol[6,1]      3.16     1 0.98
+    ## tumor_vol[7,1]      4.61     1 0.98
+    ## tumor_vol[8,1]      6.71    50  NaN
+    ## tumor_vol[9,1]      9.78     1 0.98
+    ## tumor_vol[10,1]    14.24     1  NaN
+    ## tumor_vol[11,1]    20.72     1 0.98
+    ## tumor_vol[12,1]    30.12     1 0.98
+    ## tumor_vol[13,1]    43.76     1 0.98
+    ## tumor_vol[14,1]    63.47     1 0.98
+    ## tumor_vol[15,1]    91.84     1 0.98
+    ## tumor_vol[16,1]   132.48     1 0.98
+    ## tumor_vol[17,1]   190.21     1  NaN
+    ## tumor_vol[18,1]   271.35     1 0.98
+    ## tumor_vol[19,1]   383.61     1 0.98
+    ## tumor_vol[20,1]   535.65     1 0.98
+    ## tumor_vol[21,1]   735.68     1  NaN
+    ## tumor_vol[22,1]   989.08     1 0.98
+    ## tumor_vol[23,1]  1295.14     1 0.98
+    ## tumor_vol[24,1]  1644.19     1 0.98
+    ## tumor_vol[25,1]  2017.15     1 0.98
+    ## tumor_vol[26,1]  2388.92     1 0.98
+    ## tumor_vol[27,1]  2734.72     1 0.98
+    ## tumor_vol[28,1]  3036.23     1  NaN
+    ## tumor_vol[29,1]  3284.69     1 0.98
+    ## tumor_vol[30,1]  3480.07     1 0.98
+    ## tumor_vol[31,1]  3628.12    50 0.98
+    ## tumor_vol[32,1]  3737.20     1 0.98
+    ## tumor_vol[33,1]  3815.91     1 0.98
+    ## tumor_vol[34,1]  3871.85    50  NaN
+    ## tumor_vol[35,1]  3911.19     1 0.98
+    ## tumor_vol[36,1]  3938.64     1 0.98
+    ## tumor_vol[37,1]  3957.70     1 0.98
+    ## tumor_vol[38,1]  3970.88     1 0.98
+    ## tumor_vol[39,1]  3979.98     1 0.98
+    ## tumor_vol[40,1]  3986.24     1 0.98
+    ## tumor_vol[41,1]  3990.55     1 0.98
+    ## tumor_vol[42,1]  3993.51     1 0.98
+    ## tumor_vol[43,1]  3995.55     1 0.98
+    ## tumor_vol[44,1]  3996.94     1 0.98
+    ## tumor_vol[45,1]  3997.90     1 0.98
+    ## tumor_vol[46,1]  3998.56     1 0.98
+    ## tumor_vol[47,1]  3999.01     1 0.98
+    ## tumor_vol[48,1]  3999.32     1 0.98
+    ## tumor_vol[49,1]  3999.53     1 0.98
+    ## tumor_diam[1,1]     0.97     1 0.98
+    ## tumor_diam[2,1]     1.10     1 0.98
+    ## tumor_diam[3,1]     1.25     1 0.98
+    ## tumor_diam[4,1]     1.42     1 0.98
+    ## tumor_diam[5,1]     1.61     1 0.98
+    ## tumor_diam[6,1]     1.82     1 0.98
+    ## tumor_diam[7,1]     2.06     1 0.98
+    ## tumor_diam[8,1]     2.34     1 0.98
+    ## tumor_diam[9,1]     2.65    50  NaN
+    ## tumor_diam[10,1]    3.01     1 0.98
+    ## tumor_diam[11,1]    3.41     1  NaN
+    ## tumor_diam[12,1]    3.86     1 0.98
+    ## tumor_diam[13,1]    4.37     1 0.98
+    ## tumor_diam[14,1]    4.95     1 0.98
+    ## tumor_diam[15,1]    5.60     1 0.98
+    ## tumor_diam[16,1]    6.32     1 0.98
+    ## tumor_diam[17,1]    7.14    50  NaN
+    ## tumor_diam[18,1]    8.03     1 0.98
+    ## tumor_diam[19,1]    9.01     1  NaN
+    ## tumor_diam[20,1]   10.08     1 0.98
+    ## tumor_diam[21,1]   11.20     1 0.98
+    ## tumor_diam[22,1]   12.36     1 0.98
+    ## tumor_diam[23,1]   13.52     1 0.98
+    ## tumor_diam[24,1]   14.64     1 0.98
+    ## tumor_diam[25,1]   15.68    50  NaN
+    ## tumor_diam[26,1]   16.59     1  NaN
+    ## tumor_diam[27,1]   17.35     1 0.98
+    ## tumor_diam[28,1]   17.97     1 0.98
+    ## tumor_diam[29,1]   18.44     1 0.98
+    ## tumor_diam[30,1]   18.80     1 0.98
+    ## tumor_diam[31,1]   19.06     1 0.98
+    ## tumor_diam[32,1]   19.25     1 0.98
+    ## tumor_diam[33,1]   19.39     1 0.98
+    ## tumor_diam[34,1]   19.48     1 0.98
+    ## tumor_diam[35,1]   19.55     1 0.98
+    ## tumor_diam[36,1]   19.59     1 0.98
+    ## tumor_diam[37,1]   19.63     1 0.98
+    ## tumor_diam[38,1]   19.65     1 0.98
+    ## tumor_diam[39,1]   19.66     1  NaN
+    ## tumor_diam[40,1]   19.67     1 0.98
+    ## tumor_diam[41,1]   19.68     1 0.98
+    ## tumor_diam[42,1]   19.68     1 0.98
+    ## tumor_diam[43,1]   19.69     1 0.98
+    ## tumor_diam[44,1]   19.69     1 0.98
+    ## tumor_diam[45,1]   19.69     1 0.98
+    ## tumor_diam[46,1]   19.69     1 0.98
+    ## tumor_diam[47,1]   19.69     1 0.98
+    ## tumor_diam[48,1]   19.69     1 0.98
+    ## tumor_diam[49,1]   19.69     1 0.98
+    ## theta[1]            0.38     1 0.98
+    ## theta[2]         4000.00    50  NaN
+    ## init_state[1]       0.33     1 0.98
+    ## lp__                0.00    50  NaN
     ## 
-    ## Samples were drawn using (diag_e) at Fri May 20 15:51:20 2016.
+    ## Samples were drawn using (diag_e) at Mon May 23 14:52:51 2016.
     ## For each parameter, n_eff is a crude measure of effective sample size,
     ## and Rhat is the potential scale reduction factor on split chains (at 
     ## convergence, Rhat=1).
@@ -518,7 +622,7 @@ We will try to set this up as a "best case" scenario, where we will tell Stan wh
 Here is the stan file we'll be using to estimate this:
 
 ``` r
-file_path <- 'generative_model_single_obs_more_params.stan'
+file_path <- file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
 lines <- readLines(file_path, encoding="ASCII")
 for (n in 1:length(lines)) cat(lines[n],'\n')
 ```
@@ -566,7 +670,7 @@ for (n in 1:length(lines)) cat(lines[n],'\n')
     ##     growth_rate <- theta[1];  
     ##     max_size <- theta[2];  
     ##  
-    ##     dTV_dt[1] <- (TV[1]*growth_rate*(max_size-TV[1]));  
+    ##     dTV_dt[1] <- (TV[1]*growth_rate*(1-TV[1]/max_size));  
     ##      
     ##     return dTV_dt;  
     ##   }  
@@ -639,7 +743,7 @@ growthdata <- list(
 )
 ## call using cmdstan instead of rstan. more reliable for longer-running models
 stan_home <- '/usr/local/Cellar/cmdstan/2.9.0'
-modelpath <- file.path(getwd(),'generative_model_single_obs_more_params.stan')
+modelpath <- file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
 modelpath <- gsub(modelpath, pattern = "(.*)\\.stan", replacement = '\\1')
 modelname <- gsub(modelpath, pattern = ".*\\/([^\\/.]+)$", replacement = "\\1")
 datafile <- file.path(getwd(),paste0(modelname,'.data.R'))
@@ -662,5 +766,6 @@ growthdata <- list(
   , obs_size = sample_data$tumor_size
   , max_size = 4000
 )
-testfit <- stan('generative_model_single_obs_more_params.stan', data = growthdata, iter=10, chains = 1)
+testfit <- stan(file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
+                , data = growthdata, iter=10, chains = 1)
 ```
