@@ -1,4 +1,9 @@
 
+library(deSolve)
+library(dplyr)
+library(tidyr)
+library(purrr)
+
 #' Function to simulate data for simple survival model, as applied to onco-immunotherapy data
 #' 
 #' @description 

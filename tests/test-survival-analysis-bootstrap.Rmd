@@ -9,17 +9,21 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r init, include=TRUE, results = 'hide'}
+```{r init, eval = TRUE, echo = FALSE, results = 'hide'}
+root_dir <- path.expand('../')
+function_dir <- root_dir
+stanfile_dir <- file.path(root_dir, 'stanfiles')
+## note: this code assumes we are in the 'tests' directory of the repo
 suppressMessages(suppressWarnings({
   library(dplyr)
   library(ggplot2)
   library(tidyr)
   library(purrr)
   library(survival)
-  source('simulate-data.function.R')
-  source('prep-data.function.R')
-  source('make-data-plots.function.R')
-  source('simulate-survival-analysis.function.R')
+  source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
+  source(file.path(function_dir, 'simulate-survival-analysis.function.R'), chdir = T)
 }))
 
 ```
@@ -38,7 +42,7 @@ First step is to review the data-simulation process.
 
 The simulation code are encapsulated in the **simulate_data** function: 
 
-```{r load-function}
+```{r load-function, eval = F}
 source('simulate-data.function.R')
 ```
 
@@ -55,14 +59,14 @@ Most of the post-processing has been scripted into two helper functions: **prep_
 First, we review the simulated data:
 
 ```{r plot}
-source('make-data-plots.function.R')
+#source('make-data-plots.function.R')
 make_data_plots(d)
 ```
 
 Then, we rescale / center covariates for analysis: 
 
 ```{r prep-data}
-source('prep-data.function.R')
+#source('prep-data.function.R')
 res <- prep_data(d)
 adata <- res$per_observation
 survd <- res$per_patient
@@ -106,7 +110,7 @@ Let's run it 100 times to see how likely we are to pick up the importance of tum
 
 ```{r sim-survival, results = 'hide'}
 
-source('simulate-survival-analysis.function.R')
+#source('simulate-survival-analysis.function.R')
 
 ## run process 100x (simulate data, estimate model for association)
 res <- map(seq_len(100), ~simulate_survival_analysis())

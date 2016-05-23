@@ -3,4 +3,7 @@
 .RData
 .Ruserdata
 *.rda
-*.png
+*.hpp
+*.cpp
+*.data.R
+simulated_*.png

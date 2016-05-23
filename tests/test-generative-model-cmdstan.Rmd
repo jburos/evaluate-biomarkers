@@ -10,8 +10,10 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r init, results = 'hide', echo = F}
+root_dir <- path.expand('../')
+function_dir <- root_dir
+stanfile_dir <- file.path(root_dir, 'stanfiles')
 suppressMessages(suppressWarnings({
-  rm(list=ls())
   library(dplyr)
   library(ggplot2)
   library(rstan)
@@ -20,9 +22,9 @@ suppressMessages(suppressWarnings({
   library(lme4)
   rstan_options(auto_write = TRUE)
   options(mc.cores = min(parallel::detectCores(),3))
-  source('simulate-data.function.R')
-  source('prep-data.function.R')
-  source('make-data-plots.function.R')
+  source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
 }))
 ```
 
@@ -136,9 +138,11 @@ standata <- list(
   , covars = adata %>% dplyr::select(rescaled_init_size)
 )
 
-testfit <- stan('long_surv.stan', data = standata, chains = 1, iter = 10)
+testfit <- stan(file.path(stanfile_dir,'long_surv.stan')
+                , data = standata, chains = 1, iter = 10)
 
-stanfit <- stan('long_surv.stan', data = standata, chains = 3, iter = 1000)
+stanfit <- stan(file.path(stanfile_dir,'long_surv.stan')
+                , data = standata, chains = 3, iter = 1000)
 
 print(stanfit, 'beta')
 ```
@@ -168,7 +172,7 @@ We will first review how this works & then test out the implementation using Cmd
 Here is the stan file :
 
 ```{r echo-stan-sim}
-file_path <- 'generative_model_sim_data.stan'
+file_path <- file.path(stanfile_dir,'generative_model_sim_data.stan')
 lines <- readLines(file_path, encoding="ASCII")
 for (n in 1:length(lines)) cat(lines[n],'\n')
 ```
@@ -184,7 +188,9 @@ sample_params <- list(
   , growth_rate = unique(sample_data$growth_rate)
   , max_size = 4000
 )
-testfit <- stan('generative_model_sim_data.stan', data = sample_params, chains = 1, iter = 100, algorithm = 'Fixed_param')
+testfit <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
+                , data = sample_params, chains = 1, iter = 100
+                , algorithm = 'Fixed_param')
 print(testfit)
 ```
 
@@ -197,7 +203,7 @@ We will try to set this up as a "best case" scenario, where we will tell Stan wh
 Here is the stan file we'll be using to estimate this:
 
 ```{r echo-stan-single-pat}
-file_path <- 'generative_model_single_obs_more_params.stan'
+file_path <- file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
 lines <- readLines(file_path, encoding="ASCII")
 for (n in 1:length(lines)) cat(lines[n],'\n')
 ```
@@ -222,7 +228,7 @@ growthdata <- list(
 )
 ## call using cmdstan instead of rstan. more reliable for longer-running models
 stan_home <- '/usr/local/Cellar/cmdstan/2.9.0'
-modelpath <- file.path(getwd(),'generative_model_single_obs_more_params.stan')
+modelpath <- file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
 modelpath <- gsub(modelpath, pattern = "(.*)\\.stan", replacement = '\\1')
 modelname <- gsub(modelpath, pattern = ".*\\/([^\\/.]+)$", replacement = "\\1")
 datafile <- file.path(getwd(),paste0(modelname,'.data.R'))
@@ -245,7 +251,8 @@ growthdata <- list(
   , obs_size = sample_data$tumor_size
   , max_size = 4000
 )
-testfit <- stan('generative_model_single_obs_more_params.stan', data = growthdata, iter=10, chains = 1)
+testfit <- stan(file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
+                , data = growthdata, iter=10, chains = 1)
 ```
 
 
