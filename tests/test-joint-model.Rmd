@@ -1,0 +1,152 @@
+---
+title: "Test-growth-model.Rmd"
+author: "Jacqueline Buros"
+date: "May 23, 2016"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r prep-data, echo = FALSE, eval = TRUE, results = 'hide'}
+root_dir <- path.expand('../')
+function_dir <- root_dir
+stanfile_dir <- file.path(root_dir, 'stanfiles')
+suppressMessages(suppressWarnings({
+  library(dplyr)
+  library(ggplot2)
+  library(rstan)
+  library(purrr)
+  library(deSolve)
+  library(lme4)
+  library(arm)
+  source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
+  rstan_options(auto_write = TRUE)
+  options(mc.cores = min(parallel::detectCores(),3))
+}))
+```
+
+The goal of this analysis is to jointly fit the growth model with the survival model.
+
+Details about these submodels are documented in:
+
+   1. [test-growth-model.md](test-growth-model.md)
+   2. [test-generative-model-cmdstan.md](test-generative-model.md)
+
+Here we will combine the two models & attempt to jointly estimate them.
+
+## Simulate data
+
+As in previous examples, we will simulate data using the `simulate_data` function.
+
+In this case, we will tweak the inputs to :
+
+    1. remove all sources of noise
+    2. make hazard directly proportional to size of tumor
+
+```{r sim-data}
+data <- simulate_data(n = 100
+                      , max_size = 4000
+                      , max_t = 50
+                      , failure_threshold = 4
+                      , progression_threshold = 3
+                      , size_noise_fun = create_scalar(0)
+                      , growth_rate_noise_fun = create_scalar(0)
+                      , hazard_noise_fun = create_scalar(0)
+                      , hazard_fun = function(row) {row$tumor_size} ## for now, hazard proportional to size
+                      )
+
+## prep data for analysis
+res <- prep_data(data) 
+survd <- res$per_patient ## summarized per patient; appropriate for typical survival analysis
+adata <- res$per_observation ## denormalized; appropriate for longitudinal analysis
+rm(res)
+
+## review data for a few simulated points
+plot_simulated_data(data, n = 6)
+```
+
+
+## Checking Stan code by using it to simulate data
+
+First thing we're going to do is double-check the Stan code by using it to simulate the 
+data for one patient. The data simulated using Stan should match that simulated using R more or less exactly.
+
+(note: not yet written)
+
+```{r check-stan-sim, eval = F, include = F, echo = F}
+
+## TODO write this section
+
+## what does simulated data look like according to these params?
+## make sure data simulated according to R match those according to Stan
+sample_params <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , init_vol = unique(sample_data$init_size)
+  , growth_rate = unique(sample_data$growth_rate)
+  , max_size = 4000
+)
+stangen <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
+                , data = sample_params, chains = 1, iter = 5, algorithm = 'Fixed_param')
+print(stangen, pars = 'tumor_vol')
+ppd_vol <- rstan::extract(stangen, 'tumor_vol')$tumor_vol
+ppd_diam <- rstan::extract(stangen, 'tumor_diam')$tumor_diam
+sample_data$vol_from_stan <- apply(ppd_vol, FUN = unique, MARGIN = 2)
+sample_data$diam_from_stan <- apply(ppd_diam, FUN = unique, MARGIN = 2)
+ggplot(sample_data, aes(x = t)) + 
+  geom_line(aes(y = tumor_size, colour = 'simulated - R')) + 
+  geom_line(aes(y = vol_from_stan, colour = 'simulated - stan'), linetype = 'dashed') +
+  ggtitle('comparing simulated volumes for one patient over time')
+
+ggplot(sample_data, aes(x = t)) + 
+  geom_line(aes(y = observed_size, colour = 'simulated - R')) + 
+  geom_line(aes(y = diam_from_stan, colour = 'simulated - stan'), linetype = 'dashed') +
+  ggtitle('comparing simulated diameters for one patient over time')
+```
+
+
+## Test case on a single patient
+
+First we select a single patient on which to test our model.
+
+```{r select-random-patient}
+## pick random patient
+sample_data <- adata %>% 
+  semi_join(adata %>% sample_n(1) %>% dplyr::select(patid), by = 'patid') %>%
+  mutate(id = id(patid)) #### numeric, ordered identifier for ID within this subset of patients
+plot_simulated_data(sample_data, n = NULL)
+```
+
+Stan code for single-patient model
+
+```{r test-joint-model1}
+standata <- list(
+ ## observed tumor size events
+ N_obs = nrow(sample_data)
+ , obs_t  = sample_data$t
+ , obs_s = sample_data$id
+ , obs_size = sample_data$observed_size
+ 
+ ## clinical event submodel
+ , N = nrow(sample_data)
+ , S = n_distinct(sample_data$id)
+ , X = 1
+ , T = max(sample_data$t)
+ , s = sample_data$id
+ , t = sample_data$t
+ , t_id = sample_data$t
+ , event = sample_data$failure_or_progression
+ , event_covars = sample_data %>% dplyr::select(rescaled_init_size)
+)
+
+testfit <- stan(file.path(stanfile_dir,'joint_model_single_obs_diam.stan'), iter = 10, chains = 1, data = standata)
+
+stanfit <- stan(fit = testfit, data = standata, iter = 1000, chains = 4)
+
+```
+
+
