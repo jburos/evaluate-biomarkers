@@ -41,7 +41,7 @@ functions {
     growth_rate <- theta[1]; 
     max_size <- theta[2]; 
 
-    dTV_dt[1] <- (TV[1]*growth_rate*(max_size-TV[1])); 
+    dTV_dt[1] <- (TV[1]*growth_rate*(1-TV[1]/max_size)); 
     
     return dTV_dt; 
   } 
