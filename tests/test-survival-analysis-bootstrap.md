@@ -3,20 +3,6 @@ Bootstrap survival analysis
 Jacqueline Buros
 May 20, 2016
 
-``` r
-suppressMessages(suppressWarnings({
-  library(dplyr)
-  library(ggplot2)
-  library(tidyr)
-  library(purrr)
-  library(survival)
-  source('simulate-data.function.R')
-  source('prep-data.function.R')
-  source('make-data-plots.function.R')
-  source('simulate-survival-analysis.function.R')
-}))
-```
-
 Introduction
 ------------
 
@@ -48,7 +34,7 @@ Most of the post-processing has been scripted into two helper functions: **prep\
 First, we review the simulated data:
 
 ``` r
-source('make-data-plots.function.R')
+#source('make-data-plots.function.R')
 make_data_plots(d)
 ```
 
@@ -70,7 +56,7 @@ make_data_plots(d)
 Then, we rescale / center covariates for analysis:
 
 ``` r
-source('prep-data.function.R')
+#source('prep-data.function.R')
 res <- prep_data(d)
 ```
 
@@ -78,9 +64,9 @@ res <- prep_data(d)
     ## 
     ##   failure_status failure_or_progression_status     n percent
     ##            (dbl)                         (dbl) (int)   (chr)
-    ## 1              0                             0    10     10%
-    ## 2              0                             1    43     43%
-    ## 3              1                             1    47     47%
+    ## 1              0                             0    28     28%
+    ## 2              0                             1    45     45%
+    ## 3              1                             1    27     27%
 
 ``` r
 adata <- res$per_observation
@@ -110,10 +96,10 @@ print(survfit)
     ## 
     ## 
     ##                     coef exp(coef) se(coef)    z    p
-    ## rescaled_init_size 0.171     1.186    0.148 1.15 0.25
+    ## rescaled_init_size 0.290     1.336    0.186 1.56 0.12
     ## 
-    ## Likelihood ratio test=1.31  on 1 df, p=0.252
-    ## n= 100, number of events= 47
+    ## Likelihood ratio test=2.36  on 1 df, p=0.124
+    ## n= 100, number of events= 27
 
 Alternatively, we can consider first progression and/or failure as the outcome:
 
@@ -131,10 +117,10 @@ print(survfit2)
     ## 
     ## 
     ##                      coef exp(coef) se(coef)    z    p
-    ## rescaled_init_size 0.0286    1.0291   0.1098 0.26 0.79
+    ## rescaled_init_size 0.0577    1.0594   0.1294 0.45 0.66
     ## 
-    ## Likelihood ratio test=0.07  on 1 df, p=0.794
-    ## n= 100, number of events= 90
+    ## Likelihood ratio test=0.2  on 1 df, p=0.656
+    ## n= 100, number of events= 72
 
 Now, depending on the particular draw / random seed the simulation used, this covariate might or might not be "significantly" associated with either of the two outcomes.
 
@@ -148,7 +134,7 @@ To answer this, we have wrapped the simulate data -&gt; run analysis -&gt; inspe
 Let's run it 100 times to see how likely we are to pick up the importance of tumor size in patient risk.
 
 ``` r
-source('simulate-survival-analysis.function.R')
+#source('simulate-survival-analysis.function.R')
 
 ## run process 100x (simulate data, estimate model for association)
 res <- map(seq_len(100), ~simulate_survival_analysis())
@@ -223,5 +209,5 @@ rdata %>%
     ## 
     ##                  outcome   not p<0.05
     ##                    (chr) (chr)  (chr)
-    ## 1                failure   87%    13%
-    ## 2 failure_or_progression   86%    14%
+    ## 1                failure   95%     5%
+    ## 2 failure_or_progression   87%    13%

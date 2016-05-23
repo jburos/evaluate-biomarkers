@@ -14,7 +14,6 @@ root_dir <- path.expand('../')
 function_dir <- root_dir
 stanfile_dir <- file.path(root_dir, 'stanfiles')
 suppressMessages(suppressWarnings({
-  rm(list=ls())
   library(dplyr)
   library(ggplot2)
   library(rstan)
@@ -125,8 +124,8 @@ sample_params <- list(
 stangen <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
                 , data = sample_params, chains = 1, iter = 5, algorithm = 'Fixed_param')
 print(stangen, pars = 'tumor_vol')
-ppd_vol <- extract(stangen, 'tumor_vol')$tumor_vol
-ppd_diam <- extract(stangen, 'tumor_diam')$tumor_diam
+ppd_vol <- rstan::extract(stangen, 'tumor_vol')$tumor_vol
+ppd_diam <- rstan::extract(stangen, 'tumor_diam')$tumor_diam
 sample_data$vol_from_stan <- apply(ppd_vol, FUN = unique, MARGIN = 2)
 sample_data$diam_from_stan <- apply(ppd_diam, FUN = unique, MARGIN = 2)
 ggplot(sample_data, aes(x = t)) + 
