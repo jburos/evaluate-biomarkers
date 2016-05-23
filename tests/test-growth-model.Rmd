@@ -9,7 +9,10 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r prep-data, echo = FALSE, eval=TRUE, results = 'hide'}
+```{r prep-data, echo = FALSE, eval = TRUE, results = 'hide'}
+root_dir <- path.expand('../')
+function_dir <- root_dir
+stanfile_dir <- file.path(root_dir, 'stanfiles')
 suppressMessages(suppressWarnings({
   rm(list=ls())
   library(dplyr)
@@ -19,6 +22,9 @@ suppressMessages(suppressWarnings({
   library(deSolve)
   library(lme4)
   library(arm)
+  source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
   rstan_options(auto_write = TRUE)
   options(mc.cores = min(parallel::detectCores(),3))
 }))
@@ -34,10 +40,6 @@ Changes from previous versions:
     2. make hazard directly proportional to size of tumor
 
 ```{r sim-data}
-source('simulate-data.function.R')
-source('prep-data.function.R')
-source('make-data-plots.function.R')
-
 data <- simulate_data(n = 100
                       , max_size = 4000
                       , max_t = 50
@@ -120,7 +122,8 @@ sample_params <- list(
   , growth_rate = unique(sample_data$growth_rate)
   , max_size = 4000
 )
-stangen <- stan('generative_model_sim_data.stan', data = sample_params, chains = 1, iter = 5, algorithm = 'Fixed_param')
+stangen <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
+                , data = sample_params, chains = 1, iter = 5, algorithm = 'Fixed_param')
 print(stangen, pars = 'tumor_vol')
 ppd_vol <- extract(stangen, 'tumor_vol')$tumor_vol
 ppd_diam <- extract(stangen, 'tumor_diam')$tumor_diam
@@ -148,7 +151,8 @@ standata <- list(
   , max_size = 4000
 )
 
-testfit <- stan('generative_model_single_obs_more_params.stan', data = standata, iter=10, chains = 1)
+testfit <- stan(file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
+                , data = standata, iter=10, chains = 1)
 
 stanfit1 <- stan(fit = testfit, data = standata, iter = 1000, chains = 3)
 
@@ -166,7 +170,8 @@ standata2 <- list(
   , obs_size = sample_data$tumor_size
 )
 
-testfit2 <- stan('generative_model_single_obs2.stan', data = standata2, iter=10, chains = 1)
+testfit2 <- stan(file.path(stanfile_dir,'generative_model_single_obs2.stan')
+                 , data = standata2, iter=10, chains = 1)
 
 stanfit2 <- stan(fit = testfit2, data = standata2, iter = 500, chains = 3)
 
@@ -184,7 +189,8 @@ standata3 <- list(
   , obs_size = sample_data$observed_size
 )
 
-testfit3 <- stan('generative_model_single_obs_diam.stan', data = standata3, iter=10, chains = 1)
+testfit3 <- stan(file.path(stanfile_dir,'generative_model_single_obs_diam.stan')
+                 , data = standata3, iter=10, chains = 1)
 stanfit3 <- stan(fit = testfit3, data = standata3, iter = 200, chains = 3)
 
 print(stanfit3, pars = c('init_vol','growth_rate','max_size'))
