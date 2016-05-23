@@ -134,7 +134,7 @@ standata2 <- list(
 
 testfit2 <- stan('generative_model_single_obs2.stan', data = standata2, iter=10, chains = 1)
 
-stanfit2 <- stan(fit = testfit2, data = standata2, iter = 1000, chains = 3)
+stanfit2 <- stan(fit = testfit2, data = standata2, iter = 500, chains = 3)
 
 print(stanfit2, pars = c('init_vol','growth_rate','max_size'))
 print(sample_params$init_vol)
