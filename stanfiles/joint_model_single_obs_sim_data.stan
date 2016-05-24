@@ -88,20 +88,19 @@ transformed data {
   c <- 0.01;    // priors for event submodel
 }
 parameters {
-  real<lower=0> max_size_raw;        // max tolerable size for each tumor
+  real<lower=0> max_size;
   real<lower=0> growth_rate;         // rate of growth
   real<lower=0> meas_error;             // global measurement error of diameters
   real<lower=0> init_vol;            // estimated initial volume
   real beta_tumor_vol;
-  
-  vector<lower=0>[T] baseline; // unstructured baseline hazard for each timepoint t
+  real intercept;
+  vector[T] baseline; // unstructured baseline hazard for each timepoint t
   //real sample_frailty[S]; 
   vector[X] beta; // beta for each covariate
 }
 transformed parameters {
   real obs_tumor_vol[N_obs, 1];  // inferred tumor size
   real obs_tumor_diam[N_obs];
-  real max_size;
   vector<lower=0>[N] hazard;
   real hz_tumor_vol[N, 1];
   real obs_theta[2];
@@ -109,7 +108,6 @@ transformed parameters {
   real hz_theta[2];
   real hz_init_state[1];
   
-  max_size <- 4000 + max_size_raw;
   obs_theta[1] <- growth_rate;
   obs_theta[2] <- max_size;
   obs_init_state[1] <- init_vol;
@@ -141,7 +139,7 @@ transformed parameters {
                                 , x_i
                                 );
   for (n in 1:N) {
-    hazard[n] <- exp(event_covars[n,]*beta + hz_tumor_vol[n,1]*beta_tumor_vol)*baseline[t_id[n]];
+    hazard[n] <- inv_logit(intercept + baseline[t_id[n]] + event_covars[n,]*beta + hz_tumor_vol[n,1]*beta_tumor_vol);
   }
 
 }
@@ -150,12 +148,27 @@ model {
   meas_error ~ cauchy(0, 1);
   init_vol ~ normal(0, 1);
   growth_rate ~ normal(0, 1);
-  max_size_raw ~ normal(0, 10);
+  max_size ~ normal(0, 10);
   obs_size ~ normal(obs_tumor_diam, meas_error);
-  beta_tumor_vol ~ normal(0, 1);
   
   // clinical event submodel
+  beta_tumor_vol ~ normal(0, 1);
+  intercept ~ normal(-13, 1);
   baseline ~ normal(0, 1);
   beta ~ normal(0, 1);
-  event ~ poisson(hazard);
+  event ~ bernoulli(hazard);
+}
+generated quantities {
+  int y_hat[N];
+  real loglik[N];
+  
+  for (n in 1:N) {
+    if (!is_nan(hazard[n]) && hazard[n] <= pow(2,30)) {
+      y_hat[n] <- bernoulli_rng(hazard[n]);
+      loglik[n] <- bernoulli_log(event[n], hazard[n]);
+    } else {
+      y_hat[n] <- 0;
+      loglik[n] <- not_a_number();
+    }
+  }
 }
