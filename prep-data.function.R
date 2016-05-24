@@ -8,8 +8,8 @@ prep_data <- function(data) {
     dplyr::group_by(patid) %>%
     dplyr::mutate(
       surv_time = max(t, na.rm = T)
-      , init_observed_size = first(observed_size, order_by = t)
-      , last_observed_size = last(observed_size, order_by = t)
+      , init_observed_size = dplyr::first(observed_size, order_by = t)
+      , last_observed_size = dplyr::last(observed_size, order_by = t)
     ) %>%
     dplyr::filter(t == surv_time) %>%
     ungroup() %>%
