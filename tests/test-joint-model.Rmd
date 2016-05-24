@@ -51,12 +51,13 @@ In this case, we will tweak the inputs to :
 data <- simulate_data(n = 100
                       , max_size = 4000
                       , max_t = 50
-                      , failure_threshold = 4
-                      , progression_threshold = 3
+                      , failure_threshold = 3
+                      , progression_threshold = 2
                       , size_noise_fun = create_scalar(0)
                       , growth_rate_noise_fun = create_scalar(0)
                       , hazard_noise_fun = create_scalar(0)
-                      , hazard_fun = function(row) {row$tumor_size} ## for now, hazard proportional to size
+                      , hazard_coefs_fun = function(n) { list(beta_tumor_size = create_scalar(1)(n)) }
+                      , hazard_fun = function(row) {row$tumor_size*row$beta_tumor_size}
                       )
 
 ## prep data for analysis
@@ -70,45 +71,6 @@ plot_simulated_data(data, n = 6)
 ```
 
 
-## Checking Stan code by using it to simulate data
-
-First thing we're going to do is double-check the Stan code by using it to simulate the 
-data for one patient. The data simulated using Stan should match that simulated using R more or less exactly.
-
-(note: not yet written)
-
-```{r check-stan-sim, eval = F, include = F, echo = F}
-
-## TODO write this section
-
-## what does simulated data look like according to these params?
-## make sure data simulated according to R match those according to Stan
-sample_params <- list(
-  N_obs = nrow(sample_data)
-  , obs_t = sample_data$t
-  , init_vol = unique(sample_data$init_size)
-  , growth_rate = unique(sample_data$growth_rate)
-  , max_size = 4000
-)
-stangen <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
-                , data = sample_params, chains = 1, iter = 5, algorithm = 'Fixed_param')
-print(stangen, pars = 'tumor_vol')
-ppd_vol <- rstan::extract(stangen, 'tumor_vol')$tumor_vol
-ppd_diam <- rstan::extract(stangen, 'tumor_diam')$tumor_diam
-sample_data$vol_from_stan <- apply(ppd_vol, FUN = unique, MARGIN = 2)
-sample_data$diam_from_stan <- apply(ppd_diam, FUN = unique, MARGIN = 2)
-ggplot(sample_data, aes(x = t)) + 
-  geom_line(aes(y = tumor_size, colour = 'simulated - R')) + 
-  geom_line(aes(y = vol_from_stan, colour = 'simulated - stan'), linetype = 'dashed') +
-  ggtitle('comparing simulated volumes for one patient over time')
-
-ggplot(sample_data, aes(x = t)) + 
-  geom_line(aes(y = observed_size, colour = 'simulated - R')) + 
-  geom_line(aes(y = diam_from_stan, colour = 'simulated - stan'), linetype = 'dashed') +
-  ggtitle('comparing simulated diameters for one patient over time')
-```
-
-
 ## Test case on a single patient
 
 First we select a single patient on which to test our model.
@@ -117,9 +79,19 @@ First we select a single patient on which to test our model.
 ## pick random patient
 sample_data <- adata %>% 
   semi_join(adata %>% sample_n(1) %>% dplyr::select(patid), by = 'patid') %>%
-  mutate(id = id(patid)) #### numeric, ordered identifier for ID within this subset of patients
+  #### numeric, ordered identifier for ID within this subset of patients 
+  mutate(id = id(patid))  %>% 
+  mutate(mean_obs_size = mean(observed_size)
+         , sd_obs_size = sd(observed_size)
+         , rescaled_obs_size = observed_size/sd_obs_size
+         )
 plot_simulated_data(sample_data, n = NULL)
+ggplot(data = sample_data) +
+  geom_line(aes(x = t, y = rescaled_obs_size))
+
 ```
+
+### test growth model with rescaling
 
 Stan code for single-patient model
 
@@ -129,7 +101,7 @@ standata <- list(
  N_obs = nrow(sample_data)
  , obs_t  = sample_data$t
  , obs_s = sample_data$id
- , obs_size = sample_data$observed_size
+ , obs_size = sample_data$rescaled_obs_size
  
  ## clinical event submodel
  , N = nrow(sample_data)
@@ -143,10 +115,105 @@ standata <- list(
  , event_covars = sample_data %>% dplyr::select(rescaled_init_size)
 )
 
-testfit <- stan(file.path(stanfile_dir,'joint_model_single_obs_diam.stan'), iter = 10, chains = 1, data = standata)
+testfit <- stan(file.path(stanfile_dir,'joint_model_single_obs_sim_data.stan'), iter = 10, chains = 1, data = standata)
 
-stanfit <- stan(fit = testfit, data = standata, iter = 1000, chains = 4)
+stanfit <- stan(fit = testfit, data = standata, iter = 500, chains = 3)
+
+ppd_events <- rstan::extract(stanfit,'y_hat')$y_hat
+sample_data$ppd_percentage <- apply(ppd_events, MARGIN = 2, mean)
+
+ppd_obs_size <- rstan::extract(stanfit)$obs_tumor_diam
+sample_data$ppd_obs_size <- apply(ppd_obs_size, MARGIN = 2, mean)
+ggplot(sample_data, aes(x = t)) + 
+  geom_point(aes(y = ppd_obs_size, colour = 'obs_size')) + 
+  geom_line(aes(y = rescaled_obs_size, colour = 'simulated_size'))
+```
+
+As expected, growth rate is unaffected by this transformation.
+
+```{r eval-rescaling}
+print(stanfit, 'growth_rate')
+unique(sample_data$growth_rate)
+```
+
+How is the initial volume related to the rescaled diameter?
+
+```{r eval-rescale-vol}
+print(list(init_volume = unique(sample_data$init_size)
+           , sd_obs_size = unique(sample_data$sd_obs_size)
+           , rescaled_init_vol = unique(sample_data$init_size)/(unique(sample_data$sd_obs_size)^3)
+           , stan_estimated_init_vol = mean(rstan::extract(stanfit,'init_vol')$init_vol)
+))
+```
+
+Let's save this model fit; we will then simulate events according to this model.
+
+```{r save-model}
+stanfit1 <- stanfit
+```
+
+### simulate event data given growth model
+
+The goal of this simulation is to fine-tune the correspondence of the rescaled volume estimate -> clinical events.
+
+Since the implementation of the clinical risk model using Stan is slightly different from that using R, it will be useful to double-check that they yield similar estimates. 
+
+```{r sim-data-stan}
+standata <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , init_vol = mean(rstan::extract(stanfit1,'init_vol')$init_vol)
+  , growth_rate = mean(rstan::extract(stanfit1,'growth_rate')$growth_rate)
+  , max_size = mean(rstan::extract(stanfit1, 'max_size')$max_size)
+  , beta_tumor_vol = unique(sample_data$beta_tumor_size)
+)
+
+testfit <- stan(file.path(stanfile_dir, 'joint_model_sim_data.stan')
+                , data = standata, iter = 10, chains = 1
+                )
+
+stanfit <- stan(fit = testfit, data = standata, iter = 1000, chains = 3)
+ppd_events <- rstan::extract(stanfit)$event
+sample_data$ppd_percentage <- apply(ppd_events, MARGIN = 2, mean)
+ggplot(data = sample_data) + 
+  geom_line(aes(x = t, y = ppd_percentage, colour = 'stan-predicted-hazard')) + 
+  geom_point(aes(x = t, y = failure_or_progression, colour = 'R-simulated-events'))
 
 ```
 
+### Run joint model on single patient 
 
+Cool. Now let's try running the joint model again on a single observation.
+
+```{r joint-model-stan}
+standata <- list(
+ ## observed tumor size events
+ N_obs = nrow(sample_data)
+ , obs_t  = sample_data$t
+ , obs_s = sample_data$id
+ , obs_size = sample_data$rescaled_obs_size
+ 
+ ## clinical event submodel
+ , N = nrow(sample_data)
+ , S = n_distinct(sample_data$id)
+ , X = 1
+ , T = max(sample_data$t)
+ , s = sample_data$id
+ , t = sample_data$t
+ , t_id = sample_data$t
+ , event = sample_data$failure_or_progression
+ , event_covars = sample_data %>% dplyr::select(rescaled_init_size)
+)
+
+testfit <- stan(file.path(stanfile_dir, 'joint_model_single_obs_sim_data.stan')
+                , data = standata, iter = 10, chains = 1
+                )
+
+stanfit <- stan(fit = testfit, data = standata, iter = 1000, chains = 3)
+ppd_events <- rstan::extract(stanfit)$event
+sample_data$ppd_percentage <- apply(ppd_events, MARGIN = 2, mean)
+ggplot(data = sample_data) + 
+  geom_line(aes(x = t, y = ppd_percentage, colour = 'stan-predicted-hazard')) + 
+  geom_point(aes(x = t, y = failure_or_progression, colour = 'R-simulated-events'))
+
+```
