@@ -85,18 +85,18 @@ transformed parameters {
   
   // limit each beta to appropriate submodel
   for (k in 1:X) {
-    b1[k] <- beta_m1[k]*x1[k];
-    b2[k] <- beta_m2[k]*x2[k];
-    b3[k] <- beta_m3[k]*x3[k];
+    b1[k] <- rows_dot_product(beta_m1[k],x1[k]);
+    b2[k] <- rows_dot_product(beta_m2[k],x2[k]);
+    b3[k] <- rows_dot_product(beta_m3[k],x3[k]);
   }
 
   for (n in 1:N) {
-    linpred1[n] <- x[n,]*b1;
-    linpred2[n] <- x[n,]*b2;
-    linpred3[n] <- x[n,]*b3;
-    h1[n] <- inv_logit(subject_frailty[s_id[n]] + h0_m1[t_id[n]] + linpred1[n]);
-    h2[n] <- inv_logit(subject_frailty[s_id[n]] + h0_m2[t_id[n]] + linpred2[n]);
-    h3[n] <- inv_logit(subject_frailty[s_id[n]] + h0_m3[t_id[n]] + linpred3[n]);
+    linpred1[n] <- rows_dot_product(x[n,], b1);
+    linpred2[n] <- rows_dot_product(x[n,], b2);
+    linpred3[n] <- rows_dot_product(x[n,], b3);
+    h1[n] <- subject_frailty[s_id[n]] + h0_m1[t_id[n]] + linpred1[n];
+    h2[n] <- subject_frailty[s_id[n]] + h0_m2[t_id[n]] + linpred2[n];
+    h3[n] <- subject_frailty[s_id[n]] + h0_m3[t_id[n]] + linpred3[n];
   }
 }
 model {
@@ -111,16 +111,16 @@ model {
   beta_m3 ~ normal(0, 1);
   
   // subject-level frailty terms
-  frailty_mean ~ cauchy(hprior_frailty_mean_loc, 1);
-  frailty_sd ~ cauchy(hprior_frailty_sd_loc, 1);
+  frailty_mean ~ normal(hprior_frailty_mean_loc, 1);
+  frailty_sd ~ normal(hprior_frailty_sd_loc, 1);
   subject_frailty ~ normal(frailty_mean, frailty_sd);
   
   for (n in 1:N) {
     if (post_ev1[n] == 0) {
-      ev1[n] ~ poisson(h1[n]);
-      ev2[n] ~ poisson(h2[n]);
+      ev1[n] ~ poisson_log(h1[n]);
+      ev2[n] ~ poisson_log(h2[n]);
     } else {
-      ev2[n] ~ poisson(h3[n]);
+      ev2[n] ~ poisson_log(h3[n]);
     }
   }
 }
