@@ -63,7 +63,7 @@ transformed data {
 }
 parameters {
   real frailty_mean;
-  real frailty_sd;
+  real<lower=0> frailty_sd;
   real subject_frailty[S];
   vector[X] beta_m1;
   vector[X] beta_m2;
