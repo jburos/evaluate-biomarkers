@@ -334,13 +334,58 @@ stanfit <- stan(
 
 Compare results to those from the SemiCompRisks package.
 
-```{r compare-estimates}
+Start by comparing the "baseline" hazard functions. If these aren't computed similarly, then we can't expect coefficient estimates to be similar.
+
+```{r baseline-hazard}
+
+### from stan 
+baseline_h1 <- 
+  rstan::extract(stanfit, 'h0_m1')$h0_m1
+
+baseline_stan1 <- data.frame(time = seq_len(ncol(baseline_h1))
+                             , mean = apply(baseline_h1 , MARGIN = 2, median)
+                             , lower = apply(baseline_h1, MARGIN = 2, function(x) quantile(x, probs = 0.25))
+                             , upper = apply(baseline_h1, MARGIN = 2, function(x) quantile(x, probs = 0.75))
+                             )
+
+ggplot(data = baseline_stan1, aes(x = time)) + 
+  geom_line(aes(y = mean)) + 
+  geom_line(aes(y = lower), linetype = 'dashed') + 
+  geom_line(aes(y = upper), linetype = 'dashed')
+
+
+## from CompRisks model
+#baseline_scr1 <- 
+
+
+```
+
+```{r compare-estimates-m1}
 
 ## estimates from h1 using semi-comp-risks
 lapply(summ.fit_PEM$coef[,'exp(beta1)'], log)
 
 ## estimates from h1 using Stan
 print(stanfit, 'beta_m1')
+```
+
+
+```{r compare-estimates-m2}
+
+## estimates from h1 using semi-comp-risks
+lapply(summ.fit_PEM$coef[,'exp(beta2)'], log)
+
+## estimates from h1 using Stan
+print(stanfit, 'beta_m2')
+```
+
+```{r compare-estimates-m3}
+
+## estimates from h1 using semi-comp-risks
+lapply(summ.fit_PEM$coef[,'exp(beta3)'], log)
+
+## estimates from h1 using Stan
+print(stanfit, 'beta_m3')
 ```
 
 ```{r mvn-model-inits, eval = FALSE}
