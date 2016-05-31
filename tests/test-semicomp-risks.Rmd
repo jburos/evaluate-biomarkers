@@ -274,7 +274,7 @@ reformat_data <- function(data, time_precision = 2) {
   longd %>% inner_join(tps, by = 'timepoint_id')
 }
 
-d <- reformat_data(sampled_data, time_precision = 0.01)
+d <- reformat_data(sample_data, time_precision = 0.01)
 str(d)
 ```
 
@@ -336,9 +336,11 @@ Compare results to those from the SemiCompRisks package.
 
 ```{r compare-estimates}
 
-## estimates from h1 from semi-comp-risks
-lapply()
+## estimates from h1 using semi-comp-risks
+lapply(summ.fit_PEM$coef[,'exp(beta1)'], log)
 
+## estimates from h1 using Stan
+print(stanfit, 'beta_m1')
 ```
 
 ```{r mvn-model-inits, eval = FALSE}
