@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+*.rda
+*.hpp
+*.cpp
+*.data.R
+simulated_*.png

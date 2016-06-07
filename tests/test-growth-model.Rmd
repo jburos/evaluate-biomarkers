@@ -1,0 +1,200 @@
+---
+title: "Test-growth-model.Rmd"
+author: "Jacqueline Buros"
+date: "May 23, 2016"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r prep-data, echo = FALSE, eval = TRUE, results = 'hide'}
+root_dir <- path.expand('../')
+function_dir <- root_dir
+stanfile_dir <- file.path(root_dir, 'stanfiles')
+suppressMessages(suppressWarnings({
+  library(dplyr)
+  library(ggplot2)
+  library(rstan)
+  library(purrr)
+  library(deSolve)
+  library(lme4)
+  library(arm)
+  source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
+  rstan_options(auto_write = TRUE)
+  options(mc.cores = min(parallel::detectCores(),3))
+}))
+```
+
+
+## Simulate data
+
+Simulate data using standard functions.
+
+Changes from previous versions:
+    1. remove all sources of noise
+    2. make hazard directly proportional to size of tumor
+
+```{r sim-data}
+data <- simulate_data(n = 100
+                      , max_size = 4000
+                      , max_t = 50
+                      , failure_threshold = 4
+                      , progression_threshold = 3
+                      , size_noise_fun = create_scalar(0)
+                      , growth_rate_noise_fun = create_scalar(0)
+                      , hazard_noise_fun = create_scalar(0)
+                      , hazard_fun = function(row) {row$tumor_size} ## for now, hazard proportional to size
+                      )
+
+## prep data for analysis
+res <- prep_data(data) 
+survd <- res$per_patient ## summarized per patient; appropriate for typical survival analysis
+adata <- res$per_observation ## denormalized; appropriate for longitudinal analysis
+rm(res)
+
+## review data for a few simulated points
+plot_simulated_data(data, n = 6)
+```
+
+## Test growth model using lme4 / lmer
+
+```{r test-lmer}
+growthfit <- lmer(rescaled_patient_observed_size ~ t + rescaled_init_size + 
+                    (1 + t || patid)
+                  , data = adata
+                  )
+display(growthfit)        
+```
+
+How well does this fit?
+
+```{r check-fit1}
+adata$pd <- predict(growthfit)
+ggplot(adata %>% semi_join(adata %>% sample_n(1), by = 'patid')
+       , aes(x = t, group = patid)
+       ) +
+  geom_line(aes(y = rescaled_patient_observed_size, colour = 'observed')) + 
+  geom_point(aes(y = pd, colour = 'model predictions'))
+```
+
+Need to transform data, since we are modeling a % growth rate
+
+```{r test-lmer2}
+growthfit2 <- lmer(log1p(observed_size) ~ t + rescaled_init_size + 
+                    (1 + t || patid)
+                  , data = adata
+)
+display(growthfit2)
+```
+
+See if fit improves
+
+```{r check-fit2}
+adata$pd2 <- expm1(predict(growthfit2))
+ggplot(adata %>% semi_join(adata %>% sample_n(1), by = 'patid')
+       , aes(x = t, group = patid)
+) +
+  geom_line(aes(y = observed_size, colour = 'observed')) + 
+  geom_point(aes(y = pd2, colour = 'model predictions'))
+```
+
+## Checking Stan code by using it to simulate data
+
+First thing we're going to do is double-check the Stan code by using it to simulate the 
+data for one patient. The data simulated using Stan should match that simulated using R exactly.
+
+```{r check-stan-sim}
+## pick random patient
+sample_data <- adata %>% semi_join(adata %>% sample_n(1) %>% dplyr::select(patid), by = 'patid')
+plot_simulated_data(sample_data, n = NULL)
+
+## what does simulated data look like according to these params?
+## make sure data simulated according to R match those according to Stan
+sample_params <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , init_vol = unique(sample_data$init_size)
+  , growth_rate = unique(sample_data$growth_rate)
+  , max_size = 4000
+)
+stangen <- stan(file.path(stanfile_dir,'generative_model_sim_data.stan')
+                , data = sample_params, chains = 1, iter = 5, algorithm = 'Fixed_param')
+print(stangen, pars = 'tumor_vol')
+ppd_vol <- rstan::extract(stangen, 'tumor_vol')$tumor_vol
+ppd_diam <- rstan::extract(stangen, 'tumor_diam')$tumor_diam
+sample_data$vol_from_stan <- apply(ppd_vol, FUN = unique, MARGIN = 2)
+sample_data$diam_from_stan <- apply(ppd_diam, FUN = unique, MARGIN = 2)
+ggplot(sample_data, aes(x = t)) + 
+  geom_line(aes(y = tumor_size, colour = 'simulated - R')) + 
+  geom_line(aes(y = vol_from_stan, colour = 'simulated - stan'), linetype = 'dashed') +
+  ggtitle('comparing simulated volumes for one patient over time')
+
+ggplot(sample_data, aes(x = t)) + 
+  geom_line(aes(y = observed_size, colour = 'simulated - R')) + 
+  geom_line(aes(y = diam_from_stan, colour = 'simulated - stan'), linetype = 'dashed') +
+  ggtitle('comparing simulated diameters for one patient over time')
+```
+
+
+## First test of growth model fit - max-size as known
+
+```{r check-stan1}
+standata <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$tumor_size
+  , max_size = 4000
+)
+
+testfit <- stan(file.path(stanfile_dir,'generative_model_single_obs_more_params.stan')
+                , data = standata, iter=10, chains = 1)
+
+stanfit1 <- stan(fit = testfit, data = standata, iter = 1000, chains = 3)
+
+print(stanfit1, pars = c('init_vol','growth_rate'))
+print(sample_params$init_vol)
+print(sample_params$growth_rate)
+```
+
+## Second test of growth model fit - estimate max-size
+
+```{r check-stan2}
+standata2 <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$tumor_size
+)
+
+testfit2 <- stan(file.path(stanfile_dir,'generative_model_single_obs2.stan')
+                 , data = standata2, iter=10, chains = 1)
+
+stanfit2 <- stan(fit = testfit2, data = standata2, iter = 500, chains = 3)
+
+print(stanfit2, pars = c('init_vol','growth_rate','max_size'))
+print(sample_params$init_vol)
+print(sample_params$growth_rate)
+```
+
+## Third test of growth model fit - estimate volume from diameters
+
+```{r check-stan3}
+standata3 <- list(
+  N_obs = nrow(sample_data)
+  , obs_t = sample_data$t
+  , obs_size = sample_data$observed_size
+)
+
+testfit3 <- stan(file.path(stanfile_dir,'generative_model_single_obs_diam.stan')
+                 , data = standata3, iter=10, chains = 1)
+stanfit3 <- stan(fit = testfit3, data = standata3, iter = 200, chains = 3)
+
+print(stanfit3, pars = c('init_vol','growth_rate','max_size'))
+print(sample_params$init_vol)
+print(sample_params$growth_rate)
+```
+
+
