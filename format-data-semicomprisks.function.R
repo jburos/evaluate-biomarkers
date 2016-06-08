@@ -8,7 +8,7 @@ library(tidyr)
 #' @param time_precision decimal points to use when rounding time (e.g. 0 = nearest integer)
 #' 
 #' @returns a data frame
-format_data_semicomprisks <- function(data, time_precision = 2, event1 = 'progression', event2 = 'failure') {
+format_data_semicomprisks <- function(data, time_precision = 2, event1 = 'progression', event2 = 'failure', allow_unequal_counts = FALSE) {
   
   subjd <- data %>%
     dplyr::mutate(subject_id = row_number())
@@ -77,9 +77,28 @@ format_data_semicomprisks <- function(data, time_precision = 2, event1 = 'progre
   ## confirm no duplicates by subject/timepoint
   stopifnot(all(duplicated(cbind(longd$subject_id, longd$timepoint_id))==FALSE))
   
-  ## confirm number of events the same as in original data 
-  stopifnot(data %>% dplyr::select(one_of(stringr::str_c(event1,'status',sep='_'))) %>% unlist() %>% sum() == sum(longd$progression))
-  stopifnot(data %>% dplyr::select(one_of(stringr::str_c(event2,'status',sep='_'))) %>% unlist() %>% sum() == sum(longd$failure))
+  ## confirm number of eventsof type1 the same as in original data 
+  for (event in c(event1, event2)) {
+    original_number_events <- data %>% dplyr::select(one_of(stringr::str_c(event,'status',sep='_'))) %>% unlist() %>% sum()
+    revised_number_events <- longd %>% dplyr::select(one_of(event)) %>% unlist() %>% sum()
+    if (original_number_events != revised_number_events) {
+      if (allow_unequal_counts == FALSE) {
+        print(stringr::str_c('Note: number of ',event,' events has changed from ',original_number_events,' to ',revised_number_events))
+        print("Here is a sample of data for the records that have changed:")
+        disjoint_event_records <- 
+          longd %>% 
+          dplyr::group_by(patid) %>% 
+          dplyr::summarise_each(funs = funs(new_status = 'sum'), one_of(event)) %>% 
+          ungroup() %>% 
+          inner_join(data, by = 'patid') %>% 
+          dplyr::filter_(stringr::str_c(event,' != ',event,'_status'))
+        print(head(disjoint_event_records))
+        stopifnot(original_number_events == revised_number_events)
+      } else {
+        warning(stringr::str_c('Number of ',event,' events has changed from ',original_number_events,' to ',revised_number_events))
+      }
+    }
+  }
   
   longd %>% inner_join(tps, by = 'timepoint_id')
 }
