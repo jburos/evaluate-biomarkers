@@ -217,3 +217,26 @@ ggplot(data = sample_data) +
   geom_point(aes(x = t, y = failure_or_progression, colour = 'R-simulated-events'))
 
 ```
+
+## Multi-patient joint model
+
+Next we're going to try running the multi-patient joint model on several patients of data.
+
+```{r joint-model-multi}
+jointdata <- list(
+ ## observed tumor size events
+ N_obs = nrow(adata)
+ , obs_t  = adata$t
+ , obs_s = adata$id
+ , obs_size = adata$rescaled_obs_size
+ 
+ ## clinical event submodel
+ , N = nrow(adata)
+ , S = n_distinct(adata$id)
+ , X = 1
+ , T = max(adata$t)
+ , s = adata$id
+ , t = adata$t
+ , event = adata$failure_or_progression
+ , event_covars = adata %>% dplyr::select(rescaled_init_size)
+)
