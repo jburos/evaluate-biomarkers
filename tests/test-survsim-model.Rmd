@@ -60,9 +60,68 @@ data_wide <- clinical.data %>%
                 progression_status = status1,
                 failure_status = status2,
                 x1 = x.1,
-                x2 = x.2)
+                x2 = x.2
+                ) %>%
+    ## clean up cases where progression occurs after failure
+  dplyr::mutate(progression_after_failure = ifelse(progression_status == 1 & failure_status == 1 & first_progression > first_failure, 1, 0)
+                , first_progression = ifelse(progression_after_failure == 1, first_failure, first_progression)
+                , progression_status = ifelse(progression_after_failure == 1, 0, progression_status)
+                ) %>%
+  dplyr::select(-progression_after_failure)
 
 str(data_wide)
+```
+
+## Evaluate using Stan code
+
+First we transform the data into a counting-process-like format for use by Stan
+
+```{r analysis-using-stan}
+
+
+source(file.path(function_dir,'format-data-semicomprisks.function.R'))
+
+stand <- format_data_semicomprisks(data = data_wide, event1 = 'progression', event2 = 'failure')
+
+standata <- list(
+  ## dimensions
+  N = nrow(stand)
+  , S = n_distinct(stand$subject_id)
+  , T = n_distinct(stand$timepoint_id)
+  , X = 3 ## number of covars
+  
+  ## data 
+  , s_id = stand$subject_id
+  , t_id = stand$timepoint_id
+  , t_dur = stand$duration
+  , t_time = stand$time_to
+  , ev1 = stand$progression
+  , ev2 = stand$failure
+  , post_ev1 = stand$post_progression
+  , x = stand %>% dplyr::select(x, x1, x2)
+  
+  # which covariates inform which model 
+  , x1 = array(c(1,1,1), dim = c(3))
+  , x2 = array(c(1,1,1), dim = c(3))  
+  , x3 = array(c(1,1,1), dim = c(3))  
+)
+
+testfit <- stan(
+  file = file.path(stanfile_dir, 'semi_competing_risks_model.stan')
+  , data = standata
+  , chains = 1
+  , iter = 10
+  , control = list(adapt_delta = 0.95)
+)
+
+stanfit <- stan(
+  fit = testfit
+  , data = standata
+  , chains = 3
+  , iter = 800
+  , control = list(adapt_delta = 0.95)
+  )
+
 ```
 
 ## Evaluate using SemiCompRisks
