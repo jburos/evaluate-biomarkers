@@ -21,9 +21,11 @@ suppressMessages(suppressWarnings({
   library(deSolve)
   library(lme4)
   library(arm)
+  source(file.path(function_dir, 'format-data-semicomprisks.function.R'), chdir = T)
   source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
   source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
   source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
+  set.seed(1234)
   rstan_options(auto_write = TRUE)
   options(mc.cores = min(parallel::detectCores(),3))
 }))
@@ -149,7 +151,7 @@ sg_max <- c(
   max(Y$first_progression[Y$progression_status == 1]) 
   
   ## max time submodel 2 (death no progression or death at progression)
-  , max(Y$first_failure[Y$first_progression == Y$first_failure])
+  , max(Y$first_failure[Y$progression_status == 0 & Y$failure_status == 1])
   
   ## max time submodel 3 (death following progression)
   , max(Y$first_failure[Y$progression_status == 1 & Y$failure_status == 1]) 
@@ -180,7 +182,7 @@ mcmc.PEM <- list(run=list(numReps=numReps
                  )
 ```
 
-Now, we can execute the model
+Now, we can execute the model & summarize results
 
 ```{r execute-pem-scr}
 ##
@@ -194,4 +196,141 @@ fit_PEM <- BayesID(as.matrix(Y), lin.pred, survd, cluster=NULL, model=myModel, h
 fit_PEM
 summ.fit_PEM <- summary(fit_PEM); names(summ.fit_PEM)
 summ.fit_PEM
+```
+
+Plot baseline hazard estimated by model
+
+```{r plot-baseline-hazard}
+plot(fit_PEM, plot.est = 'BH')
+```
+
+Plot range of coefficient estimates for each submodel
+
+```{r plot-coefs}
+
+scr_res <- data.frame(
+  beta1 =
+    fit_PEM %>% 
+    map('beta1.p') %>%
+    compact() %>%
+    flatten_dbl()
+  , beta2 =
+    fit_PEM %>% 
+    map('beta2.p') %>%
+    compact() %>%
+    flatten_dbl()
+  , beta3 =
+    fit_PEM %>% 
+    map('beta3.p') %>%
+    compact() %>%
+    flatten_dbl()
+) %>%
+  tidyr::gather(submodel, coef)
+
+scr_res %>%
+  dplyr::mutate(submodel = ifelse(submodel == 'beta1','h1: non-terminating illness'
+                                  , ifelse(submodel == 'beta2', 'h2: terminating event prior to illness'
+                                           , 'h3: terminating event following illness'))) %>%
+  ggplot(., aes(x = coef, group = submodel, colour = submodel)) + 
+  geom_density() + facet_wrap(~submodel, ncol = 1)
+
+```
+
+## summarize probability that coef <> 0
+
+```{r summarize-coefs}
+
+scr_res %>%
+  dplyr::mutate(submodel = ifelse(submodel == 'beta1','h1: non-terminating illness'
+                                  , ifelse(submodel == 'beta2', 'h2: terminating event prior to illness'
+                                           , 'h3: terminating event following illness'))) %>%
+  group_by(submodel) %>%
+  dplyr::summarize(prop_above_0 = mean(ifelse(coef > 0, 1, 0))
+                   , prop_below_0 = mean(ifelse(coef < 0, 1, 0))
+                   ) %>%
+  ungroup() %>%
+  dplyr::mutate(proportion_not_zero = ifelse(prop_above_0 > prop_below_0, prop_below_0, prop_above_0))
+
+```
+
+## compare to analysis using Survival -> failure 
+
+```{r survival-analysis1}
+survfit1 <- coxph(
+  formula = Surv(first_failure, failure_status) ~ rescaled_init_size
+  , data = survd
+  )
+
+ss1 <- summary(survfit1)
+ss1
+```
+
+
+## compare to analysis using Survival -> progression
+
+```{r survival-analysis1}
+survfit2 <- coxph(
+  formula = Surv(first_progression, progression_status) ~ rescaled_init_size
+  , data = survd
+  )
+
+ss2 <- summary(survfit2)
+ss2
+```
+
+## compare to analysis using Survival -> progression or failure 
+
+```{r survival-analysis1}
+survfit3 <- coxph(
+  formula = Surv(first_failure_or_progression, failure_or_progression_status) ~ rescaled_init_size
+  , data = survd
+  )
+
+ss3 <- summary(survfit3)
+ss3
+```
+
+## compare to semi-competing-risks model developed using Stan
+
+```{r semi-comp-risks-stan}
+
+stand <- format_data_semicomprisks(data = survd, time_precision = 1)
+standata <- list(
+  ## dimensions
+  N = nrow(stand)
+  , S = n_distinct(stand$subject_id)
+  , T = n_distinct(stand$timepoint_id)
+  , X = 1 ## number of covars
+  
+  ## data 
+  , s_id = stand$subject_id
+  , t_id = stand$timepoint_id
+  , t_dur = stand$duration
+  , t_time = stand$time_to
+  , ev1 = stand$progression
+  , ev2 = stand$failure
+  , post_ev1 = stand$post_progression
+  , x = stand %>% dplyr::select(rescaled_init_size)
+  
+  # which covariates inform which model 
+  , x1 = array(1, dim = c(1))
+  , x2 = array(1, dim = c(1))  
+  , x3 = array(1, dim = c(1))  
+)
+
+testfit <- stan(
+  file = file.path(stanfile_dir, 'semi_competing_risks_model.stan')
+  , data = standata
+  , chains = 1
+  , iter = 10
+  , control = list(adapt_delta = 0.95)
+)
+
+stanfit <- stan(
+  fit = testfit
+  , data = standata
+  , chains = 3
+  , iter = 800
+  , control = list(adapt_delta = 0.95)
+  )
 ```

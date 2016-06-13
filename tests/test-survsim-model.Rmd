@@ -1,0 +1,208 @@
+---
+title: "Test SemiCompRisks model.Rmd"
+author: "Jacqueline Buros"
+date: "June 1, 2016"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r prep-data, echo = FALSE, eval = TRUE, results = 'hide'}
+root_dir <- path.expand('../')
+function_dir <- root_dir
+stanfile_dir <- file.path(root_dir, 'stanfiles')
+suppressMessages(suppressWarnings({
+  library(dplyr)
+  library(ggplot2)
+  library(rstan)
+  library(purrr)
+  library(deSolve)
+  library(lme4)
+  library(arm)
+  source(file.path(function_dir, 'simulate-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'prep-data.function.R'), chdir = T)
+  source(file.path(function_dir, 'make-data-plots.function.R'), chdir = T)
+  rstan_options(auto_write = TRUE)
+  options(mc.cores = min(parallel::detectCores(),3))
+}))
+```
+
+The goal of this analysis is to test the semi-competing-risks analysis methods using simulated data. 
+
+Unlike in previous examples, we will simulate data using the survsim function in R. The goal in this case will be to assess our ability to reliably recover parameters used to simulate these simulated data.
+
+```{r sim-data}
+library(survsim)
+
+dist.ev <- c("weibull", "weibull") ### time to event distributions, for each event type
+anc.ev <- c(0.7, 0.9) ## parameters for time-to-event distributions
+beta0.ev <- c(3.56, 5.94) ## beta0 for time-to-event distributions
+beta <- list(c(-0.04, -0.02), ## covariate contributions to each event type
+             c(-0.001, -0.0008),
+             c(-0.7, -0.2))
+x <- list(c("normal", 26, 4.5), c("unif", 50, 75), c("bern", 0.25)) ## distributions of parameters
+
+clinical.data <- mult.ev.sim(n = 100, foltime = 50, dist.ev = dist.ev, anc.ev = anc.ev,
+                             beta0.ev = beta0.ev, dist.cens = "weibull", anc.cens = 1, beta0.cens = 5.2,
+                             beta = beta, x = x, nsit = 2)
+
+
+data_wide <- clinical.data %>%
+  tidyr::gather('variable', 'value', time, status, start, stop) %>%
+  dplyr::mutate(variable = paste(variable, ev.num, sep='')) %>%
+  dplyr::select(-ev.num) %>%
+  tidyr::spread(key = variable, value = value) %>%
+  dplyr::rename(patid = nid,
+                first_progression = time1,
+                first_failure = time2,
+                progression_status = status1,
+                failure_status = status2,
+                x1 = x.1,
+                x2 = x.2)
+
+str(data_wide)
+```
+
+## Evaluate using SemiCompRisks
+
+```{r run-semi-comp-risks}
+library(SemiCompRisks)
+library(dplyr)
+set.seed(1234)
+
+Y <- data_wide %>% 
+  dplyr::select(first_progression, progression_status, first_failure, failure_status) %>%
+  dplyr::mutate(progression_status = ifelse(first_progression == first_failure, 0, 1))
+  
+## cluster <- sample_data %>% dplyr::select(cluster)
+form1 <- as.formula( ~ x + x1 + x2)
+form2 <- as.formula( ~ x + x1 + x2)
+form3 <- as.formula( ~ x + x1 + x2)
+lin.pred <- list(form1, form2, form3)
+```
+
+SemiCompRisks has a number of hyperparameters & tuning params that need to be set in order for this to run effectively. Here we borrow heavily from the documentation.
+
+```{r set-hyperparams}
+
+#####################
+## Hyperparameters ##
+#####################
+## Subject-specific frailty variance component
+## - prior parameters for 1/theta
+##
+theta.ab <- c(0.7, 0.7)
+
+## PEM baseline hazard function
+##
+PEM.ab1 <- c(0.7, 0.7) # prior parameters for 1/sigma_1^2
+PEM.ab2 <- c(0.7, 0.7) # prior parameters for 1/sigma_2^2
+PEM.ab3 <- c(0.7, 0.7) # prior parameters for 1/sigma_3^2
+##
+PEM.alpha1 <- 10 # prior parameters for K1
+PEM.alpha2 <- 10 # prior parameters for K2
+PEM.alpha3 <- 10 # prior parameters for K3
+
+
+## list to be passed to the BayesID function call
+hyperParams <- list(theta=theta.ab,
+                    WB=list(),
+                    PEM=list(PEM.ab1=PEM.ab1,
+                             PEM.ab2=PEM.ab2, 
+                             PEM.ab3=PEM.ab3,
+                             PEM.alpha1=PEM.alpha1, 
+                             PEM.alpha2=PEM.alpha2, 
+                             PEM.alpha3=PEM.alpha3
+                             ),
+                    MVN=list(),
+                    DPM=list()
+                    )
+
+###################
+## MCMC SETTINGS ##
+###################
+## Setting for the overall run
+##
+numReps <- 2000
+thin <- 10
+burninPerc <- 0.5
+
+## Settings for storage
+##
+nGam_save <- 0          ## nGam_save, the number of γ to be stored
+storeV <- rep(TRUE, 3)  ## whether to store posterior samples from 3 submodels
+
+## Tuning parameters for specific updates
+##
+## - common to all models
+mhProp_theta_var <- 0.05
+mhProp_Vg_var <- c(0.05, 0.05, 0.05)
+
+##
+## - specific to the PEM specification of the baseline hazard functions
+Cg <- c(0.2, 0.2, 0.2)        ## sum should be <= 0.6
+delPertg <- c(0.5, 0.5, 0.5)  ## perterbation parameter 
+rj.scheme <- 1 #  If rj.scheme=1, the birth update will draw the proposal time split from 1 : smax. 
+               #  If rj.scheme=2, the birth update will draw the proposal time split from uniquely ordered failure times in the data.
+Kg_max <- c(50, 50, 50)  ## the maximum number of splits allowed at each iteration in MHG algorithm for PEM models
+sg_max <- c(
+  ## max time to event for submodel 1 (progression only)
+  max(Y$first_progression[Y$progression_status == 1]) 
+  
+  ## max time submodel 2 (death no progression or death at progression)
+  , max(Y$first_failure[Y$first_progression == Y$first_failure])
+  
+  ## max time submodel 3 (death following progression)
+  , max(Y$first_failure[Y$progression_status == 1 & Y$failure_status == 1]) 
+)
+
+time_lambda1 <- seq(1, sg_max[1], 1) # timepoints at which h1 events are calculated
+time_lambda2 <- seq(1, sg_max[2], 1) # timepoints at which h2 events are calculated
+time_lambda3 <- seq(1, sg_max[3], 1) # timepoints at which h3 events are calculated
+
+##
+mcmc.PEM <- list(run=list(numReps=numReps
+                          , thin=thin
+                          , burninPerc=burninPerc
+                          )
+                 , storage=list(nGam_save=nGam_save
+                                , storeV=storeV
+                                )
+                 , tuning=list(mhProp_theta_var=mhProp_theta_var
+                               , mhProp_Vg_var=mhProp_Vg_var
+                               , Cg=Cg
+                               , delPertg=delPertg
+                               , rj.scheme=rj.scheme
+                               , Kg_max=Kg_max
+                               , time_lambda1=time_lambda1 
+                               , time_lambda2=time_lambda2
+                               , time_lambda3=time_lambda3
+                               )
+                 )
+```
+
+Now, we can execute the model
+
+```{r execute-pem-scr}
+##
+myModel <- c("Markov", "PEM")
+myPath <- "Output/03-Results-survsim/"
+startValues <- vector("list", 2)
+startValues[[1]] <- initiate.startValues(as.matrix(Y),
+                                         lin.pred, data_wide,
+                                         model=myModel)
+startValues[[2]] <- initiate.startValues(as.matrix(Y),
+                                         lin.pred,
+                                         data_wide, model=myModel, theta = 0.23)
+##
+fit_PEM <- BayesID(as.matrix(Y), lin.pred, data_wide, cluster=NULL, model=myModel, hyperParams = hyperParams,  mcmc = mcmc.PEM, path=myPath)
+fit_PEM
+summ.fit_PEM <- summary(fit_PEM); names(summ.fit_PEM)
+summ.fit_PEM
+```
+
+
+```{r}
+
