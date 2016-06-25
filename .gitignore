@@ -7,3 +7,4 @@
 *.cpp
 *.data.R
 simulated_*.png
+.httr-oauth
