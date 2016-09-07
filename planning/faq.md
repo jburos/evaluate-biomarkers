@@ -8,7 +8,9 @@ In the context of biomedicine, biomarkers are used in the clinical context for m
 
 According to the [Wikipedia page on biomarkers](https://en.wikipedia.org/wiki/Biomarker), 
     
-    In 1998, the National Institutes of Health Biomarkers Definitions Working Group defined a biomarker as "a characteristic that is objectively measured and evaluated as an indicator of normal biological processes, pathogenic processes, or pharmacologic responses to a therapeutic intervention
+    In 1998, the National Institutes of Health Biomarkers Definitions Working Group defined a biomarker as 
+    "a characteristic that is objectively measured and evaluated as an indicator of normal biological processes, 
+    pathogenic processes, or pharmacologic responses to a therapeutic intervention."
 
 ## In what context is this analysis being conducted?
 
